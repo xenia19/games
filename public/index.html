@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Juegos para Aprender Español</title>
+  <title>🎮 Juegos de Español - A1/A2</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka+One&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -11,240 +16,2312 @@
       box-sizing: border-box;
     }
 
+    :root {
+      --primary: #FF6B6B;
+      --secondary: #4ECDC4;
+      --accent: #FFE66D;
+      --dark: #2C3E50;
+      --light: #F7F9FC;
+      --success: #2ECC71;
+      --warning: #F39C12;
+      --danger: #E74C3C;
+      --purple: #9B59B6;
+      --blue: #3498DB;
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Nunito', sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      color: var(--dark);
+    }
+
+    .app-container {
+      min-height: 100vh;
       padding: 20px;
     }
 
-    #root {
-      width: 100%;
-      max-width: 1200px;
-    }
-
-    .menu-container {
-      background: white;
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 30px 20px;
+      background: rgba(255,255,255,0.95);
       border-radius: 20px;
-      padding: 40px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      animation: slideIn 0.5s ease-out;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    h1 {
-      text-align: center;
-      color: #333;
-      margin-bottom: 10px;
-      font-size: 2.5em;
-    }
-
-    .subtitle {
-      text-align: center;
-      color: #666;
       margin-bottom: 30px;
-      font-size: 1.1em;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
     }
 
+    .header h1 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.5rem;
+      color: var(--primary);
+      text-shadow: 3px 3px 0 var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+
+    /* Game Cards */
     .games-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
-      margin-bottom: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
     }
 
     .game-card {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px;
-      border-radius: 15px;
+      background: white;
+      border-radius: 20px;
+      padding: 25px;
       cursor: pointer;
       transition: all 0.3s ease;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      border: 3px solid transparent;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
     }
 
     .game-card:hover {
       transform: translateY(-5px);
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+      border-color: var(--secondary);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    }
+
+    .game-card .emoji {
+      font-size: 3rem;
+      margin-bottom: 15px;
     }
 
     .game-card h3 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      color: var(--dark);
       margin-bottom: 10px;
-      font-size: 1.3em;
     }
 
     .game-card p {
-      margin-bottom: 15px;
-      font-size: 0.95em;
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 50px;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #ff8e8e);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255,107,107,0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255,107,107,0.5);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, var(--secondary), #6ee7df);
+      color: white;
+      box-shadow: 0 4px 15px rgba(78,205,196,0.4);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), #58d68d);
+      color: white;
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, var(--warning), #f5b041);
+      color: white;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--dark);
+      color: var(--dark);
+    }
+
+    .btn-outline:hover {
+      background: var(--dark);
+      color: white;
+    }
+
+    /* Game Screen */
+    .game-screen {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 900px;
+      margin: 0 auto;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px dashed #eee;
+    }
+
+    .back-btn {
+      background: #eee;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .back-btn:hover {
+      background: #ddd;
+    }
+
+    /* Timer */
+    .timer {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.5rem;
+      color: var(--primary);
+      text-align: center;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #fff5f5, #ffe5e5);
+      border-radius: 15px;
+      display: inline-block;
+    }
+
+    .timer.warning {
+      color: var(--warning);
+      animation: pulse 0.5s infinite;
+    }
+
+    .timer.danger {
+      color: var(--danger);
+      animation: pulse 0.3s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    /* Score Board */
+    .scoreboard {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .score-card {
+      background: linear-gradient(135deg, var(--secondary), #6ee7df);
+      color: white;
+      padding: 15px 30px;
+      border-radius: 15px;
+      text-align: center;
+      min-width: 150px;
+    }
+
+    .score-card.player2 {
+      background: linear-gradient(135deg, var(--purple), #bb8fce);
+    }
+
+    .score-card .label {
+      font-size: 0.9rem;
       opacity: 0.9;
     }
 
-    .game-card button {
-      width: 100%;
-      padding: 10px;
-      background: white;
-      color: #667eea;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: all 0.3s ease;
+    .score-card .points {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
     }
 
-    .game-card button:hover {
-      background: #f0f0f0;
-    }
-
-    .admin-btn {
-      display: block;
-      margin: 0 auto;
-      padding: 15px 30px;
-      background: #ff6b6b;
+    /* Tabú Card */
+    .tabu-card {
+      background: linear-gradient(135deg, var(--primary), #ff8e8e);
       color: white;
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      margin: 30px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tabu-card::before {
+      content: '🚫';
+      position: absolute;
+      font-size: 150px;
+      opacity: 0.1;
+      right: -30px;
+      top: -30px;
+    }
+
+    .tabu-word {
+      font-family: 'Fredoka One', cursive;
+      font-size: 3rem;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+    }
+
+    .tabu-prohibited {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .tabu-prohibited span {
+      background: rgba(0,0,0,0.3);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    /* Input */
+    .input-field {
+      width: 100%;
+      padding: 15px 20px;
+      border: 3px solid #eee;
+      border-radius: 15px;
+      font-size: 1.1rem;
+      font-family: 'Nunito', sans-serif;
+      transition: all 0.3s;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--secondary);
+      box-shadow: 0 0 0 4px rgba(78,205,196,0.2);
+    }
+
+    /* Room Code */
+    .room-code {
+      background: linear-gradient(135deg, var(--accent), #fff176);
+      padding: 20px 40px;
+      border-radius: 15px;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .room-code .label {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .room-code .code {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.5rem;
+      color: var(--dark);
+      letter-spacing: 5px;
+    }
+
+    /* Admin Panel */
+    .admin-panel {
+      background: linear-gradient(135deg, #2c3e50, #3d566e);
+      color: white;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .admin-header {
+      text-align: center;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .admin-header h1 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+    }
+
+    .admin-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .admin-tab {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.1);
       border: none;
       border-radius: 10px;
-      font-size: 1.1em;
+      color: white;
       cursor: pointer;
-      transition: all 0.3s ease;
+      font-weight: 600;
+      transition: all 0.3s;
     }
 
-    .admin-btn:hover {
-      background: #ff5252;
-      transform: scale(1.05);
+    .admin-tab.active {
+      background: var(--secondary);
     }
 
-    .loading {
-      background: white;
-      border-radius: 20px;
+    .admin-card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .admin-card h3 {
+      margin-bottom: 15px;
+      color: var(--accent);
+    }
+
+    /* Task List */
+    .task-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .task-item {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .task-item .task-content {
+      flex: 1;
+    }
+
+    .task-item .task-word {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--accent);
+    }
+
+    .task-item .task-prohibited {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-top: 5px;
+    }
+
+    /* Conjugation Game */
+    .conjugation-card {
+      background: linear-gradient(135deg, var(--blue), #5dade2);
+      color: white;
       padding: 40px;
+      border-radius: 20px;
       text-align: center;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      margin: 30px 0;
     }
 
-    .spinner {
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #667eea;
+    .conjugation-verb {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+    }
+
+    .conjugation-question {
+      font-size: 1.3rem;
+      line-height: 1.6;
+    }
+
+    /* Word Chain */
+    .word-chain {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .word-chain .word {
+      background: var(--secondary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* Roleplay */
+    .roleplay-card {
+      background: linear-gradient(135deg, var(--purple), #bb8fce);
+      color: white;
+      padding: 40px;
+      border-radius: 20px;
+      margin: 30px 0;
+    }
+
+    .roleplay-scene {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+    }
+
+    .roleplay-roles {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .role-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 25px;
+      border-radius: 15px;
+    }
+
+    /* Words by Theme */
+    .theme-display {
+      background: linear-gradient(135deg, var(--success), #58d68d);
+      color: white;
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .theme-name {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+
+    .words-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .word-tag {
+      background: rgba(255,255,255,0.3);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* Questions */
+    .question-card {
+      background: linear-gradient(135deg, var(--warning), #f5b041);
+      color: white;
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .question-text {
+      font-size: 1.5rem;
+      line-height: 1.6;
+    }
+
+    /* Status indicators */
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .status-waiting {
+      background: var(--warning);
+      color: white;
+    }
+
+    .status-active {
+      background: var(--success);
+      color: white;
+    }
+
+    .status-finished {
+      background: var(--dark);
+      color: white;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .slide-in {
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .bounce {
+      animation: bounce 0.5s ease;
+    }
+
+    /* Waiting Screen */
+    .waiting-screen {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .waiting-screen .loader {
+      width: 60px;
+      height: 60px;
+      border: 5px solid #eee;
+      border-top-color: var(--primary);
       border-radius: 50%;
-      width: 40px;
-      height: 40px;
       animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
+      margin: 30px auto;
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* History */
+    .history-list {
+      max-height: 300px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.05);
+      border-radius: 10px;
+      padding: 15px;
+    }
+
+    .history-item {
+      padding: 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      font-size: 0.9rem;
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.8rem;
+      }
+      
+      .tabu-word {
+        font-size: 2rem;
+      }
+      
+      .timer {
+        font-size: 2rem;
+      }
+      
+      .scoreboard {
+        flex-direction: column;
+      }
+    }
+
+    /* Form styles for admin */
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 1rem;
+    }
+
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+      color: rgba(255,255,255,0.5);
+    }
+
+    .delete-btn {
+      background: var(--danger);
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal h2 {
+      margin-bottom: 20px;
+      color: var(--dark);
+    }
+
+    .modal .form-group input,
+    .modal .form-group textarea,
+    .modal .form-group select {
+      background: #f5f5f5;
+      color: var(--dark);
+      border-color: #ddd;
+    }
+
+    /* Player indicator */
+    .player-indicator {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .player-1 {
+      background: var(--secondary);
+      color: white;
+    }
+
+    .player-2 {
+      background: var(--purple);
+      color: white;
+    }
+
+    /* Action buttons in game */
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    /* Progress indicator */
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--secondary), var(--success));
+      transition: width 0.3s ease;
+    }
+
+    /* Footer link */
+    .admin-link {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .admin-link button {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .admin-link button:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    /* Battle mode */
+    .battle-arena {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .battle-player {
+      background: linear-gradient(135deg, var(--secondary), #6ee7df);
+      padding: 20px;
+      border-radius: 15px;
+      color: white;
+    }
+
+    .battle-player.player-two {
+      background: linear-gradient(135deg, var(--purple), #bb8fce);
+    }
+
+    .battle-player h4 {
+      margin-bottom: 10px;
+    }
+
+    .battle-words {
+      min-height: 150px;
     }
   </style>
 </head>
 <body>
-  <div id="root">
-    <div class="loading">
-      <div class="spinner"></div>
-      <p>Cargando juegos...</p>
-    </div>
-  </div>
+  <div id="root"></div>
 
-  <!-- React из CDN -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
-  <!-- Socket.io -->
-  <script src="/socket.io/socket.io.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
 
-  <!-- Приложение -->
-  <script>
-    const { useState, useEffect } = React;
-    const e = React.createElement;
+    // ============ SOCKET CONNECTION ============
+    const socket = io();
 
-    // Главное меню
-    function MainMenu({ onSelectGame, onAdminClick }) {
-      const games = [
-        { id: 'tabu', name: '🤐 Tabú', desc: 'Объясняй слово без запретных слов' },
-        { id: 'conjugacion', name: '📝 Спряжение глаголов', desc: 'Один спрягает, другой отвечает' },
-        { id: 'palabrasPorTema', name: '⚡ Слова по теме (30 сек)', desc: 'Сколько слов ты знаешь?' },
-        { id: 'dialogos', name: '💬 Диалоги времён', desc: 'Практика past/present/subjuntivo' },
-        { id: 'roleplay', name: '🎭 Roleplay Barcelona', desc: 'В кафе, магазине, на улице' },
-        { id: 'preguntas', name: '❓ Личные вопросы', desc: 'Отвечай на личные вопросы' },
-        { id: 'encadenamiento', name: '🔗 Цепочка слов', desc: 'Последняя буква = первая буква' },
-        { id: 'adivinanza', name: '🤔 Угадай слово', desc: 'Угадывание по описанию' },
-        { id: 'batalla', name: '⚔️ Battaglia глаголов', desc: 'Кто больше глаголов вспомнит?' },
-        { id: 'charadas', name: '🎪 Charadas', desc: 'Мимика и описание без слова' }
-      ];
+    // ============ GAME DATA ============
+    const GAMES = [
+      {
+        id: 'tabu',
+        emoji: '🤐',
+        name: 'Tabú',
+        description: 'Explica la palabra sin usar las palabras prohibidas. ¡Tu compañero debe adivinar!'
+      },
+      {
+        id: 'conjugacion',
+        emoji: '📝',
+        name: 'Conjugación',
+        description: 'Uno conjuga el verbo, el otro responde a la pregunta. ¡Practiquen juntos!'
+      },
+      {
+        id: 'palabras',
+        emoji: '⚡',
+        name: 'Palabras por tema',
+        description: '¡30 segundos! Di todas las palabras que puedas sobre el tema.'
+      },
+      {
+        id: 'dialogos',
+        emoji: '💬',
+        name: 'Diálogos',
+        description: 'Practica tiempos verbales (pasado, presente, subjuntivo) en diálogos.'
+      },
+      {
+        id: 'roleplay',
+        emoji: '🎭',
+        name: 'Situaciones',
+        description: 'Escenas de la vida real en Barcelona: en el café, en la tienda, en la calle...'
+      },
+      {
+        id: 'preguntas',
+        emoji: '❓',
+        name: 'Preguntas personales',
+        description: 'Preguntas sobre tu vida en Barcelona. Responde y pregunta a tu compañero.'
+      },
+      {
+        id: 'cadena',
+        emoji: '🔗',
+        name: 'Cadena de palabras',
+        description: 'La última letra de una palabra = la primera de la siguiente. ¡No repitas!'
+      },
+      {
+        id: 'adivinanza',
+        emoji: '🤔',
+        name: 'Adivina qué es',
+        description: 'Describe algo sin decir su nombre. Tu compañero tiene que adivinarlo.'
+      },
+      {
+        id: 'batalla',
+        emoji: '⚔️',
+        name: 'Batalla de verbos',
+        description: '60 segundos: ¿Quién conjuga más verbos correctamente?'
+      }
+    ];
 
-      return e('div', { className: 'menu-container' },
-        e('h1', null, '🎮 Juegos para aprender español'),
-        e('p', { className: 'subtitle' }, 'Elige un juego para jugar con tu compañero'),
-        
-        e('div', { className: 'games-grid' },
-          games.map(game => 
-            e('div', { key: game.id, className: 'game-card', onClick: () => onSelectGame(game.id) },
-              e('h3', null, game.name),
-              e('p', null, game.desc),
-              e('button', null, 'Jugar')
-            )
-          )
-        ),
-
-        e('button', { className: 'admin-btn', onClick: onAdminClick }, '👨‍🏫 Administrador')
-      );
-    }
-
-    // Простой экран загрузки
-    function LoadingScreen() {
-      return e('div', { className: 'loading' },
-        e('div', { className: 'spinner' }),
-        e('p', null, 'Conectando al servidor...')
-      );
-    }
-
-    // Главное приложение
+    // ============ MAIN APP ============
     function App() {
-      const [socket, setSocket] = useState(null);
-      const [connected, setConnected] = useState(false);
+      const [screen, setScreen] = useState('menu'); // menu, game, admin, join
+      const [selectedGame, setSelectedGame] = useState(null);
+      const [roomCode, setRoomCode] = useState('');
+      const [playerRole, setPlayerRole] = useState(null); // player1, player2
+      const [gameState, setGameState] = useState(null);
+      const [scores, setScores] = useState({ player1: 0, player2: 0 });
+      const [timer, setTimer] = useState(60);
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [joinCode, setJoinCode] = useState('');
+      const [playerCount, setPlayerCount] = useState(0);
+      const [history, setHistory] = useState([]);
+      const [currentTask, setCurrentTask] = useState(null);
+      const [taskIndex, setTaskIndex] = useState(0);
+      const [tasks, setTasks] = useState([]);
+      const [waitingForPartner, setWaitingForPartner] = useState(false);
+      const [gameStarted, setGameStarted] = useState(false);
+      const [inputValue, setInputValue] = useState('');
+      const [wordsSubmitted, setWordsSubmitted] = useState([]);
 
+      // Socket event listeners
       useEffect(() => {
-        const newSocket = io();
-        setSocket(newSocket);
-
-        newSocket.on('connect', () => {
-          setConnected(true);
-          console.log('✅ Conectado al servidor');
+        socket.on('game_created', (data) => {
+          setRoomCode(data.roomCode);
+          setPlayerRole('player1');
+          setWaitingForPartner(true);
         });
 
-        newSocket.on('disconnect', () => {
-          setConnected(false);
+        socket.on('player_joined', (data) => {
+          setPlayerCount(data.playerCount);
+          if (data.playerCount === 2) {
+            setWaitingForPartner(false);
+          }
         });
 
-        return () => newSocket.close();
+        socket.on('game_started', (data) => {
+          setTasks(data.tasks || []);
+          setCurrentTask(data.tasks?.[0] || null);
+          setGameStarted(true);
+          setTimer(data.time || 60);
+        });
+
+        socket.on('scores_updated', (newScores) => {
+          setScores(newScores);
+        });
+
+        socket.on('timer_update', (time) => {
+          setTimer(time);
+        });
+
+        socket.on('next_task', (data) => {
+          setCurrentTask(data.task);
+          setTaskIndex(data.index);
+        });
+
+        socket.on('answer_submitted', (data) => {
+          setHistory(prev => [...prev, data]);
+        });
+
+        socket.on('game_finished', (data) => {
+          setScreen('results');
+        });
+
+        socket.on('word_added', (data) => {
+          setWordsSubmitted(prev => [...prev, data.word]);
+        });
+
+        socket.on('player_disconnected', (data) => {
+          setPlayerCount(data.playerCount);
+        });
+
+        socket.on('error', (data) => {
+          alert(data.message);
+        });
+
+        return () => {
+          socket.off('game_created');
+          socket.off('player_joined');
+          socket.off('game_started');
+          socket.off('scores_updated');
+          socket.off('timer_update');
+          socket.off('next_task');
+          socket.off('answer_submitted');
+          socket.off('game_finished');
+          socket.off('word_added');
+          socket.off('player_disconnected');
+          socket.off('error');
+        };
       }, []);
 
-      if (!connected) {
-        return e(LoadingScreen);
+      const createGame = (gameType) => {
+        setSelectedGame(GAMES.find(g => g.id === gameType));
+        socket.emit('create_game', gameType);
+        setScreen('waiting');
+      };
+
+      const joinGame = () => {
+        if (joinCode.length >= 6) {
+          socket.emit('join_game', joinCode.toLowerCase());
+          setPlayerRole('player2');
+          setRoomCode(joinCode);
+          setScreen('waiting');
+        }
+      };
+
+      const startGame = () => {
+        socket.emit('start_game', roomCode);
+      };
+
+      const submitAnswer = (action, value) => {
+        socket.emit('submit_answer', roomCode, { action, value, player: playerRole });
+      };
+
+      const updateScore = (points) => {
+        socket.emit('update_score', roomCode, points);
+      };
+
+      const nextTask = () => {
+        socket.emit('next_task', roomCode);
+      };
+
+      const goBack = () => {
+        setScreen('menu');
+        setSelectedGame(null);
+        setRoomCode('');
+        setPlayerRole(null);
+        setGameStarted(false);
+        setWaitingForPartner(false);
+        setTasks([]);
+        setCurrentTask(null);
+        setTaskIndex(0);
+        setHistory([]);
+        setWordsSubmitted([]);
+        setScores({ player1: 0, player2: 0 });
+      };
+
+      // Render based on screen
+      if (isAdmin) {
+        return <AdminPanel onLogout={() => setIsAdmin(false)} socket={socket} />;
       }
 
-      return e(MainMenu, { 
-        onSelectGame: (type) => alert(`Seleccionaste: ${type}\n\n(Próximamente la funcionalidad completa)`),
-        onAdminClick: () => alert('Admin panel (próximamente)')
-      });
+      if (screen === 'menu') {
+        return (
+          <MainMenu 
+            onSelectGame={createGame} 
+            onJoinGame={() => setScreen('join')}
+            onAdminClick={() => setScreen('admin-login')}
+          />
+        );
+      }
+
+      if (screen === 'join') {
+        return (
+          <JoinScreen 
+            joinCode={joinCode}
+            setJoinCode={setJoinCode}
+            onJoin={joinGame}
+            onBack={goBack}
+          />
+        );
+      }
+
+      if (screen === 'admin-login') {
+        return (
+          <AdminLogin 
+            onLogin={() => setIsAdmin(true)}
+            onBack={goBack}
+            socket={socket}
+          />
+        );
+      }
+
+      if (screen === 'waiting') {
+        return (
+          <WaitingScreen 
+            roomCode={roomCode}
+            playerRole={playerRole}
+            playerCount={playerCount}
+            waitingForPartner={waitingForPartner}
+            selectedGame={selectedGame}
+            onStart={startGame}
+            onBack={goBack}
+            gameStarted={gameStarted}
+            socket={socket}
+          />
+        );
+      }
+
+      // Game screens will be added below...
+      return (
+        <div className="app-container">
+          <div className="game-screen fade-in">
+            <div className="game-header">
+              <button className="back-btn" onClick={goBack}>← Volver</button>
+              <div className="timer">{Math.floor(timer/60)}:{(timer%60).toString().padStart(2, '0')}</div>
+            </div>
+            
+            <Scoreboard scores={scores} />
+            
+            {selectedGame && (
+              <GameRenderer 
+                game={selectedGame}
+                currentTask={currentTask}
+                tasks={tasks}
+                taskIndex={taskIndex}
+                playerRole={playerRole}
+                onSubmit={submitAnswer}
+                onScore={updateScore}
+                onNext={nextTask}
+                wordsSubmitted={wordsSubmitted}
+                inputValue={inputValue}
+                setInputValue={setInputValue}
+                history={history}
+                socket={socket}
+                roomCode={roomCode}
+              />
+            )}
+          </div>
+        </div>
+      );
     }
 
-    // Renderizar
+    // ============ MAIN MENU ============
+    function MainMenu({ onSelectGame, onJoinGame, onAdminClick }) {
+      return (
+        <div className="app-container">
+          <div className="header fade-in">
+            <h1>🎮 ¡Juegos de Español!</h1>
+            <p>Aprende español jugando con tu compañero</p>
+          </div>
+
+          <div className="games-grid">
+            {GAMES.map((game, index) => (
+              <div 
+                key={game.id} 
+                className="game-card fade-in"
+                style={{ animationDelay: `${index * 0.1}s` }}
+                onClick={() => onSelectGame(game.id)}
+              >
+                <div className="emoji">{game.emoji}</div>
+                <h3>{game.name}</h3>
+                <p>{game.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '30px' }}>
+            <button className="btn btn-secondary" onClick={onJoinGame}>
+              🔗 Unirse a una partida
+            </button>
+          </div>
+
+          <div className="admin-link">
+            <button onClick={onAdminClick}>
+              👨‍🏫 Panel de Administrador
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ JOIN SCREEN ============
+    function JoinScreen({ joinCode, setJoinCode, onJoin, onBack }) {
+      return (
+        <div className="app-container">
+          <div className="game-screen fade-in" style={{ maxWidth: '500px' }}>
+            <button className="back-btn" onClick={onBack}>← Volver</button>
+            
+            <div style={{ textAlign: 'center', marginTop: '40px' }}>
+              <h2 style={{ marginBottom: '30px' }}>🔗 Unirse a una partida</h2>
+              
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="Código de la sala (6 caracteres)"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '5px' }}
+              />
+              
+              <div style={{ marginTop: '30px' }}>
+                <button 
+                  className="btn btn-primary"
+                  onClick={onJoin}
+                  disabled={joinCode.length < 6}
+                >
+                  Entrar 🚀
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ WAITING SCREEN ============
+    function WaitingScreen({ roomCode, playerRole, playerCount, waitingForPartner, selectedGame, onStart, onBack, gameStarted, socket }) {
+      const [ready, setReady] = useState(false);
+      const [partnerReady, setPartnerReady] = useState(false);
+
+      useEffect(() => {
+        socket.on('player_ready', (data) => {
+          if (data.player !== playerRole) {
+            setPartnerReady(true);
+          }
+        });
+
+        return () => socket.off('player_ready');
+      }, [playerRole]);
+
+      const toggleReady = () => {
+        setReady(!ready);
+        socket.emit('player_ready', { roomCode, player: playerRole, ready: !ready });
+      };
+
+      if (gameStarted) {
+        return null; // Will be handled by parent
+      }
+
+      return (
+        <div className="app-container">
+          <div className="game-screen fade-in">
+            <button className="back-btn" onClick={onBack}>← Volver</button>
+            
+            <div className="waiting-screen">
+              {selectedGame && (
+                <div style={{ marginBottom: '30px' }}>
+                  <span style={{ fontSize: '4rem' }}>{selectedGame.emoji}</span>
+                  <h2 style={{ marginTop: '15px' }}>{selectedGame.name}</h2>
+                </div>
+              )}
+
+              <div className="room-code">
+                <div className="label">Código de la sala:</div>
+                <div className="code">{roomCode.toUpperCase()}</div>
+              </div>
+
+              <div style={{ margin: '20px 0' }}>
+                <span className={`player-indicator ${playerRole === 'player1' ? 'player-1' : 'player-2'}`}>
+                  {playerRole === 'player1' ? '🟢 Jugador 1' : '🟣 Jugador 2'}
+                </span>
+              </div>
+
+              {waitingForPartner ? (
+                <>
+                  <div className="loader"></div>
+                  <p>Esperando al otro jugador...</p>
+                  <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '10px' }}>
+                    Comparte el código con tu compañero
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: 'var(--success)', fontWeight: '700', marginBottom: '20px' }}>
+                    ✓ ¡2 jugadores conectados!
+                  </p>
+                  
+                  <div style={{ marginBottom: '20px' }}>
+                    <button 
+                      className={`btn ${ready ? 'btn-success' : 'btn-outline'}`}
+                      onClick={toggleReady}
+                    >
+                      {ready ? '✓ ¡Listo!' : 'Estoy listo'}
+                    </button>
+                  </div>
+
+                  {partnerReady && (
+                    <p style={{ color: 'var(--success)' }}>✓ Tu compañero está listo</p>
+                  )}
+
+                  {playerRole === 'player1' && ready && partnerReady && (
+                    <button className="btn btn-primary" onClick={onStart} style={{ marginTop: '20px' }}>
+                      🚀 ¡Empezar el juego!
+                    </button>
+                  )}
+
+                  {playerRole === 'player2' && ready && (
+                    <p style={{ marginTop: '20px', color: '#666' }}>
+                      Esperando a que el Jugador 1 inicie...
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ SCOREBOARD ============
+    function Scoreboard({ scores }) {
+      return (
+        <div className="scoreboard">
+          <div className="score-card">
+            <div className="label">🟢 Jugador 1</div>
+            <div className="points">{scores.player1 || 0}</div>
+          </div>
+          <div className="score-card player2">
+            <div className="label">🟣 Jugador 2</div>
+            <div className="points">{scores.player2 || 0}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ GAME RENDERER ============
+    function GameRenderer({ game, currentTask, tasks, taskIndex, playerRole, onSubmit, onScore, onNext, wordsSubmitted, inputValue, setInputValue, history, socket, roomCode }) {
+      switch(game.id) {
+        case 'tabu':
+          return <TabuGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onScore={onScore} onNext={onNext} taskIndex={taskIndex} totalTasks={tasks.length} />;
+        case 'conjugacion':
+          return <ConjugacionGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onScore={onScore} onNext={onNext} />;
+        case 'palabras':
+          return <PalabrasGame task={currentTask} wordsSubmitted={wordsSubmitted} inputValue={inputValue} setInputValue={setInputValue} onSubmit={onSubmit} socket={socket} roomCode={roomCode} />;
+        case 'dialogos':
+          return <DialogosGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onNext={onNext} history={history} />;
+        case 'roleplay':
+          return <RoleplayGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onNext={onNext} />;
+        case 'preguntas':
+          return <PreguntasGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onNext={onNext} history={history} />;
+        case 'cadena':
+          return <CadenaGame wordsSubmitted={wordsSubmitted} inputValue={inputValue} setInputValue={setInputValue} onSubmit={onSubmit} socket={socket} roomCode={roomCode} playerRole={playerRole} />;
+        case 'adivinanza':
+          return <AdivinanzaGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onScore={onScore} onNext={onNext} />;
+        case 'batalla':
+          return <BatallaGame task={currentTask} playerRole={playerRole} onSubmit={onSubmit} onScore={onScore} history={history} />;
+        default:
+          return <div>Juego no encontrado</div>;
+      }
+    }
+
+    // ============ TABU GAME ============
+    function TabuGame({ task, playerRole, onSubmit, onScore, onNext, taskIndex, totalTasks }) {
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      const handleCorrect = () => {
+        onScore(1);
+        onSubmit('correct', task.palabra);
+        onNext();
+      };
+
+      const handleSkip = () => {
+        onSubmit('skip', task.palabra);
+        onNext();
+      };
+
+      return (
+        <div className="fade-in">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${((taskIndex + 1) / totalTasks) * 100}%` }}></div>
+          </div>
+          <p style={{ textAlign: 'center', color: '#666' }}>Palabra {taskIndex + 1} de {totalTasks}</p>
+          
+          <div className="tabu-card">
+            <div className="tabu-word">{task.palabra}</div>
+            <p style={{ marginBottom: '15px', opacity: '0.9' }}>🚫 Palabras prohibidas:</p>
+            <div className="tabu-prohibited">
+              {task.prohibidas?.map((word, i) => (
+                <span key={i}>{word}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="action-buttons">
+            <button className="btn btn-success" onClick={handleCorrect}>
+              ✓ ¡Adivinó!
+            </button>
+            <button className="btn btn-warning" onClick={handleSkip}>
+              → Pasar
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ CONJUGACION GAME ============
+    function ConjugacionGame({ task, playerRole, onSubmit, onScore, onNext }) {
+      const [answer, setAnswer] = useState('');
+      const [showAnswer, setShowAnswer] = useState(false);
+
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      const handleSubmit = () => {
+        onSubmit('answer', answer);
+        setShowAnswer(true);
+      };
+
+      const handleNext = () => {
+        setAnswer('');
+        setShowAnswer(false);
+        onNext();
+      };
+
+      return (
+        <div className="fade-in">
+          <div className="conjugation-card">
+            <div className="conjugation-verb">({task.verbo})</div>
+            <div className="conjugation-question">{task.pregunta}</div>
+          </div>
+
+          {playerRole === 'player2' && (
+            <div style={{ marginTop: '20px' }}>
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="Escribe tu respuesta..."
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+              />
+              <div className="action-buttons">
+                <button className="btn btn-primary" onClick={handleSubmit}>
+                  Enviar respuesta
+                </button>
+              </div>
+            </div>
+          )}
+
+          {playerRole === 'player1' && (
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <p style={{ color: '#666' }}>Esperando la respuesta del Jugador 2...</p>
+              {showAnswer && (
+                <div style={{ marginTop: '20px' }}>
+                  <p><strong>Respuesta esperada:</strong></p>
+                  <p style={{ color: 'var(--success)', fontWeight: '700' }}>{task.respuesta}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="action-buttons" style={{ marginTop: '30px' }}>
+            <button className="btn btn-secondary" onClick={handleNext}>
+              → Siguiente pregunta
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ PALABRAS POR TEMA GAME ============
+    function PalabrasGame({ task, wordsSubmitted, inputValue, setInputValue, onSubmit, socket, roomCode }) {
+      const inputRef = useRef(null);
+
+      const handleAddWord = (e) => {
+        e.preventDefault();
+        if (inputValue.trim()) {
+          socket.emit('add_word', { roomCode, word: inputValue.trim() });
+          onSubmit('word', inputValue.trim());
+          setInputValue('');
+          inputRef.current?.focus();
+        }
+      };
+
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      return (
+        <div className="fade-in">
+          <div className="theme-display">
+            <div className="theme-name">📋 {task.tema}</div>
+            <p>¡Di todas las palabras que puedas!</p>
+          </div>
+
+          <form onSubmit={handleAddWord} style={{ marginTop: '20px' }}>
+            <input 
+              ref={inputRef}
+              type="text"
+              className="input-field"
+              placeholder="Escribe una palabra y pulsa Enter..."
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              autoFocus
+            />
+          </form>
+
+          <div className="words-list" style={{ marginTop: '20px' }}>
+            {wordsSubmitted.map((word, i) => (
+              <span key={i} className="word-tag slide-in">{word}</span>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <span style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--success)' }}>
+              {wordsSubmitted.length}
+            </span>
+            <span style={{ color: '#666' }}> palabras</span>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ DIALOGOS GAME ============
+    function DialogosGame({ task, playerRole, onSubmit, onNext, history }) {
+      const [response, setResponse] = useState('');
+
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      const handleSend = () => {
+        if (response.trim()) {
+          onSubmit('dialog', response);
+          setResponse('');
+        }
+      };
+
+      return (
+        <div className="fade-in">
+          <div className="conjugation-card" style={{ background: 'linear-gradient(135deg, #9b59b6, #bb8fce)' }}>
+            <p style={{ marginBottom: '10px', opacity: '0.9' }}>🎯 Tiempo verbal: <strong>{task.tiempo}</strong></p>
+            <div className="conjugation-question">{task.situacion}</div>
+          </div>
+
+          <div className="history-list" style={{ marginTop: '20px' }}>
+            {history.filter(h => h.data?.action === 'dialog').map((item, i) => (
+              <div key={i} className="history-item">
+                <span className={`player-indicator ${item.data?.player === 'player1' ? 'player-1' : 'player-2'}`} style={{ marginRight: '10px' }}>
+                  {item.data?.player === 'player1' ? 'J1' : 'J2'}
+                </span>
+                {item.data?.value}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <textarea 
+              className="input-field"
+              placeholder="Escribe tu respuesta usando el tiempo correcto..."
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+              rows={3}
+            />
+            <div className="action-buttons">
+              <button className="btn btn-primary" onClick={handleSend}>
+                Enviar 💬
+              </button>
+              <button className="btn btn-secondary" onClick={onNext}>
+                → Nueva situación
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ ROLEPLAY GAME ============
+    function RoleplayGame({ task, playerRole, onSubmit, onNext }) {
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      return (
+        <div className="fade-in">
+          <div className="roleplay-card">
+            <div className="roleplay-scene">📍 {task.escena}</div>
+            <div className="roleplay-roles">
+              <div className="role-badge">
+                🟢 J1: {task.rol1}
+              </div>
+              <div className="role-badge">
+                🟣 J2: {task.rol2}
+              </div>
+            </div>
+            <p style={{ marginTop: '20px', fontSize: '1.1rem' }}>{task.instrucciones}</p>
+          </div>
+
+          <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '15px', marginTop: '20px' }}>
+            <h4 style={{ marginBottom: '10px' }}>💡 Vocabulario útil:</h4>
+            <p>{task.vocabulario?.join(', ')}</p>
+          </div>
+
+          <div className="action-buttons">
+            <button className="btn btn-secondary" onClick={onNext}>
+              → Nueva situación
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ PREGUNTAS PERSONALES GAME ============
+    function PreguntasGame({ task, playerRole, onSubmit, onNext, history }) {
+      const [answer, setAnswer] = useState('');
+
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      const handleAnswer = () => {
+        if (answer.trim()) {
+          onSubmit('answer', answer);
+          setAnswer('');
+        }
+      };
+
+      return (
+        <div className="fade-in">
+          <div className="question-card">
+            <div className="question-text">{task.pregunta}</div>
+          </div>
+
+          {task.ayuda && (
+            <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '10px', marginTop: '20px' }}>
+              <p style={{ color: '#666', fontSize: '0.9rem' }}>💡 Ayuda: {task.ayuda}</p>
+            </div>
+          )}
+
+          <div style={{ marginTop: '20px' }}>
+            <textarea 
+              className="input-field"
+              placeholder="Tu respuesta..."
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              rows={3}
+            />
+            <div className="action-buttons">
+              <button className="btn btn-primary" onClick={handleAnswer}>
+                Responder
+              </button>
+              <button className="btn btn-secondary" onClick={onNext}>
+                → Siguiente pregunta
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ CADENA DE PALABRAS GAME ============
+    function CadenaGame({ wordsSubmitted, inputValue, setInputValue, onSubmit, socket, roomCode, playerRole }) {
+      const inputRef = useRef(null);
+      const lastWord = wordsSubmitted[wordsSubmitted.length - 1];
+      const lastLetter = lastWord ? lastWord.slice(-1).toUpperCase() : null;
+
+      const handleAddWord = (e) => {
+        e.preventDefault();
+        const word = inputValue.trim().toLowerCase();
+        
+        if (word) {
+          if (lastLetter && word[0].toUpperCase() !== lastLetter) {
+            alert(`¡La palabra debe empezar con "${lastLetter}"!`);
+            return;
+          }
+          if (wordsSubmitted.includes(word)) {
+            alert('¡Esta palabra ya se ha dicho!');
+            return;
+          }
+          
+          socket.emit('add_word', { roomCode, word, player: playerRole });
+          onSubmit('chain', word);
+          setInputValue('');
+          inputRef.current?.focus();
+        }
+      };
+
+      return (
+        <div className="fade-in">
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <h3>🔗 Cadena de palabras</h3>
+            {lastWord ? (
+              <p style={{ marginTop: '10px' }}>
+                La siguiente palabra debe empezar con: 
+                <span style={{ 
+                  fontSize: '2rem', 
+                  fontWeight: '700', 
+                  color: 'var(--primary)',
+                  marginLeft: '10px'
+                }}>
+                  {lastLetter}
+                </span>
+              </p>
+            ) : (
+              <p style={{ marginTop: '10px', color: '#666' }}>¡Escribe la primera palabra!</p>
+            )}
+          </div>
+
+          <div className="word-chain">
+            {wordsSubmitted.map((word, i) => (
+              <span key={i} className="word slide-in">
+                {i > 0 && '→ '}{word}
+              </span>
+            ))}
+          </div>
+
+          <form onSubmit={handleAddWord} style={{ marginTop: '30px' }}>
+            <input 
+              ref={inputRef}
+              type="text"
+              className="input-field"
+              placeholder={lastLetter ? `Palabra que empiece con ${lastLetter}...` : 'Primera palabra...'}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              autoFocus
+            />
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <span style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--success)' }}>
+              {wordsSubmitted.length}
+            </span>
+            <span style={{ color: '#666' }}> palabras en la cadena</span>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ ADIVINANZA GAME ============
+    function AdivinanzaGame({ task, playerRole, onSubmit, onScore, onNext }) {
+      const [guess, setGuess] = useState('');
+
+      if (!task) {
+        return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>;
+      }
+
+      const handleGuess = () => {
+        if (guess.trim().toLowerCase() === task.respuesta.toLowerCase()) {
+          onScore(1);
+          alert('¡Correcto! 🎉');
+        }
+        onSubmit('guess', guess);
+        setGuess('');
+      };
+
+      return (
+        <div className="fade-in">
+          {playerRole === 'player1' ? (
+            // Player 1 sees the word and describes
+            <div className="tabu-card" style={{ background: 'linear-gradient(135deg, #3498db, #5dade2)' }}>
+              <p style={{ opacity: '0.9', marginBottom: '10px' }}>🎯 Describe esta palabra sin decirla:</p>
+              <div className="tabu-word">{task.respuesta}</div>
+              <p style={{ marginTop: '20px' }}>💡 Pistas que puedes dar: {task.pistas?.join(', ')}</p>
+            </div>
+          ) : (
+            // Player 2 guesses
+            <div>
+              <div className="question-card" style={{ background: 'linear-gradient(135deg, #3498db, #5dade2)' }}>
+                <p>🤔 Escucha la descripción y adivina la palabra</p>
+              </div>
+              
+              <div style={{ marginTop: '20px' }}>
+                <input 
+                  type="text"
+                  className="input-field"
+                  placeholder="¿Qué palabra es?"
+                  value={guess}
+                  onChange={(e) => setGuess(e.target.value)}
+                />
+                <div className="action-buttons">
+                  <button className="btn btn-primary" onClick={handleGuess}>
+                    ¡Adivinar!
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="action-buttons" style={{ marginTop: '30px' }}>
+            <button className="btn btn-secondary" onClick={onNext}>
+              → Siguiente palabra
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ BATALLA DE VERBOS GAME ============
+    function BatallaGame({ task, playerRole, onSubmit, onScore, history }) {
+      const [verb, setVerb] = useState('');
+      const [conjugation, setConjugation] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (verb.trim() && conjugation.trim()) {
+          onSubmit('verb', { verb, conjugation, player: playerRole });
+          onScore(1);
+          setVerb('');
+          setConjugation('');
+        }
+      };
+
+      const myVerbs = history.filter(h => h.data?.value?.player === playerRole);
+      const theirVerbs = history.filter(h => h.data?.value?.player !== playerRole && h.data?.action === 'verb');
+
+      return (
+        <div className="fade-in">
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <h3>⚔️ ¡Batalla de verbos!</h3>
+            <p style={{ color: '#666' }}>Conjuga tantos verbos como puedas en {task?.tiempo || 'presente'}</p>
+          </div>
+
+          <div className="battle-arena">
+            <div className="battle-player">
+              <h4>🟢 Tus verbos: {myVerbs.length}</h4>
+              <div className="battle-words">
+                {myVerbs.map((v, i) => (
+                  <div key={i} style={{ fontSize: '0.9rem', marginBottom: '5px' }}>
+                    {v.data?.value?.verb} → {v.data?.value?.conjugation}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="battle-player player-two">
+              <h4>🟣 Sus verbos: {theirVerbs.length}</h4>
+              <div className="battle-words">
+                {theirVerbs.map((v, i) => (
+                  <div key={i} style={{ fontSize: '0.9rem', marginBottom: '5px' }}>
+                    {v.data?.value?.verb} → {v.data?.value?.conjugation}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="Verbo (ej: comer)"
+                value={verb}
+                onChange={(e) => setVerb(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="Conjugación (ej: como)"
+                value={conjugation}
+                onChange={(e) => setConjugation(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="submit" className="btn btn-success">+</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    // ============ ADMIN LOGIN ============
+    function AdminLogin({ onLogin, onBack, socket }) {
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+
+      useEffect(() => {
+        socket.on('admin_authenticated', (data) => {
+          if (data.success) {
+            onLogin();
+          } else {
+            setError('Contraseña incorrecta');
+          }
+        });
+
+        return () => socket.off('admin_authenticated');
+      }, []);
+
+      const handleLogin = () => {
+        socket.emit('admin_login', password);
+      };
+
+      return (
+        <div className="app-container">
+          <div className="game-screen fade-in" style={{ maxWidth: '400px' }}>
+            <button className="back-btn" onClick={onBack}>← Volver</button>
+            
+            <div style={{ textAlign: 'center', marginTop: '40px' }}>
+              <h2>👨‍🏫 Panel de Administrador</h2>
+              
+              <div style={{ marginTop: '30px' }}>
+                <input 
+                  type="password"
+                  className="input-field"
+                  placeholder="Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                />
+                
+                {error && <p style={{ color: 'var(--danger)', marginTop: '10px' }}>{error}</p>}
+                
+                <div style={{ marginTop: '20px' }}>
+                  <button className="btn btn-primary" onClick={handleLogin}>
+                    Entrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ ADMIN PANEL ============
+    function AdminPanel({ onLogout, socket }) {
+      const [activeTab, setActiveTab] = useState('games');
+      const [activeGames, setActiveGames] = useState([]);
+      const [tasks, setTasks] = useState({});
+      const [selectedCollection, setSelectedCollection] = useState('tabu');
+      const [showAddModal, setShowAddModal] = useState(false);
+      const [watchingGame, setWatchingGame] = useState(null);
+      const [gameDetails, setGameDetails] = useState(null);
+
+      useEffect(() => {
+        // Get active games
+        socket.emit('get_active_games');
+        
+        socket.on('active_games_list', (games) => {
+          setActiveGames(games);
+        });
+
+        socket.on('tasks_list', (taskList) => {
+          setTasks(prev => ({ ...prev, [selectedCollection]: taskList }));
+        });
+
+        socket.on('game_details', (details) => {
+          setGameDetails(details);
+        });
+
+        socket.on('task_added', (task) => {
+          setTasks(prev => ({
+            ...prev,
+            [selectedCollection]: [...(prev[selectedCollection] || []), task]
+          }));
+        });
+
+        socket.on('task_deleted', ({ id }) => {
+          setTasks(prev => ({
+            ...prev,
+            [selectedCollection]: (prev[selectedCollection] || []).filter(t => t.id !== id)
+          }));
+        });
+
+        // Refresh games periodically
+        const interval = setInterval(() => {
+          socket.emit('get_active_games');
+        }, 5000);
+
+        return () => {
+          clearInterval(interval);
+          socket.off('active_games_list');
+          socket.off('tasks_list');
+          socket.off('game_details');
+          socket.off('task_added');
+          socket.off('task_deleted');
+        };
+      }, [selectedCollection]);
+
+      const loadTasks = (collection) => {
+        setSelectedCollection(collection);
+        socket.emit('get_tasks', collection);
+      };
+
+      const deleteTask = (taskId) => {
+        if (confirm('¿Eliminar esta tarea?')) {
+          socket.emit('delete_task', selectedCollection, taskId);
+        }
+      };
+
+      const watchGame = (gameId) => {
+        setWatchingGame(gameId);
+        socket.emit('watch_game', gameId);
+      };
+
+      return (
+        <div className="admin-panel">
+          <div className="admin-header">
+            <h1>👨‍🏫 Panel de Administrador</h1>
+            <button className="btn btn-outline" style={{ color: 'white', borderColor: 'white', marginTop: '10px' }} onClick={onLogout}>
+              Cerrar sesión
+            </button>
+          </div>
+
+          <div className="admin-tabs">
+            <button 
+              className={`admin-tab ${activeTab === 'games' ? 'active' : ''}`}
+              onClick={() => setActiveTab('games')}
+            >
+              🎮 Partidas activas
+            </button>
+            <button 
+              className={`admin-tab ${activeTab === 'tasks' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('tasks'); loadTasks('tabu'); }}
+            >
+              📝 Gestionar tareas
+            </button>
+          </div>
+
+          {activeTab === 'games' && (
+            <div className="admin-card">
+              <h3>Partidas en curso</h3>
+              {activeGames.length === 0 ? (
+                <p style={{ opacity: '0.7' }}>No hay partidas activas</p>
+              ) : (
+                activeGames.map(game => (
+                  <div key={game.id} className="task-item">
+                    <div className="task-content">
+                      <div className="task-word">
+                        {GAMES.find(g => g.id === game.type)?.emoji} {game.type}
+                      </div>
+                      <div className="task-prohibited">
+                        Jugadores: {Object.keys(game.players || {}).length}/2 | 
+                        Estado: <span className={`status-badge status-${game.status}`}>{game.status}</span>
+                      </div>
+                    </div>
+                    <button className="btn btn-secondary" onClick={() => watchGame(game.id)}>
+                      👁️ Ver
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === 'games' && gameDetails && (
+            <div className="admin-card">
+              <h3>📊 Detalles de la partida</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div>
+                  <h4>Puntuaciones</h4>
+                  {Object.entries(gameDetails.scores || {}).map(([player, score]) => (
+                    <p key={player}>{player}: {score} puntos</p>
+                  ))}
+                </div>
+                <div>
+                  <h4>Tarea actual</h4>
+                  <pre style={{ fontSize: '0.8rem', overflow: 'auto' }}>
+                    {JSON.stringify(gameDetails.gameData?.tasks?.[gameDetails.gameData?.currentTaskIndex], null, 2)}
+                  </pre>
+                </div>
+              </div>
+              <div style={{ marginTop: '20px' }}>
+                <h4>Historial</h4>
+                <div className="history-list" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                  {gameDetails.history?.slice(-10).map((item, i) => (
+                    <div key={i} className="history-item">
+                      {new Date(item.timestamp).toLocaleTimeString()} - {item.action}: {JSON.stringify(item.value)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'tasks' && (
+            <>
+              <div className="admin-tabs">
+                {['tabu', 'conjugacion', 'palabrasPorTema', 'dialogos', 'roleplay', 'preguntas', 'adivinanza'].map(col => (
+                  <button 
+                    key={col}
+                    className={`admin-tab ${selectedCollection === col ? 'active' : ''}`}
+                    onClick={() => loadTasks(col)}
+                  >
+                    {col}
+                  </button>
+                ))}
+              </div>
+
+              <div className="admin-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Tareas: {selectedCollection}</h3>
+                  <button className="btn btn-success" onClick={() => setShowAddModal(true)}>
+                    + Añadir tarea
+                  </button>
+                </div>
+
+                <div className="task-list">
+                  {(tasks[selectedCollection] || []).map(task => (
+                    <div key={task.id} className="task-item">
+                      <div className="task-content">
+                        <div className="task-word">
+                          {task.palabra || task.pregunta || task.tema || task.escena || task.respuesta}
+                        </div>
+                        <div className="task-prohibited">
+                          {task.prohibidas?.join(', ') || task.respuesta || task.tiempo || ''}
+                        </div>
+                      </div>
+                      <button className="delete-btn" onClick={() => deleteTask(task.id)}>
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {showAddModal && (
+            <AddTaskModal 
+              collection={selectedCollection}
+              onClose={() => setShowAddModal(false)}
+              socket={socket}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ============ ADD TASK MODAL ============
+    function AddTaskModal({ collection, onClose, socket }) {
+      const [formData, setFormData] = useState({});
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        socket.emit('add_task', collection, { ...formData, nivel: 'A2' });
+        onClose();
+      };
+
+      const renderFields = () => {
+        switch(collection) {
+          case 'tabu':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Palabra</label>
+                  <input 
+                    type="text" 
+                    value={formData.palabra || ''} 
+                    onChange={(e) => setFormData({...formData, palabra: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Palabras prohibidas (separadas por coma)</label>
+                  <input 
+                    type="text" 
+                    value={formData.prohibidasText || ''} 
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      prohibidasText: e.target.value,
+                      prohibidas: e.target.value.split(',').map(w => w.trim())
+                    })}
+                    required
+                  />
+                </div>
+              </>
+            );
+          case 'conjugacion':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Verbo (infinitivo)</label>
+                  <input 
+                    type="text" 
+                    value={formData.verbo || ''} 
+                    onChange={(e) => setFormData({...formData, verbo: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Pregunta</label>
+                  <input 
+                    type="text" 
+                    value={formData.pregunta || ''} 
+                    onChange={(e) => setFormData({...formData, pregunta: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Respuesta esperada</label>
+                  <input 
+                    type="text" 
+                    value={formData.respuesta || ''} 
+                    onChange={(e) => setFormData({...formData, respuesta: e.target.value})}
+                    required
+                  />
+                </div>
+              </>
+            );
+          case 'palabrasPorTema':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Tema</label>
+                  <input 
+                    type="text" 
+                    value={formData.tema || ''} 
+                    onChange={(e) => setFormData({...formData, tema: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Tiempo (segundos)</label>
+                  <input 
+                    type="number" 
+                    value={formData.tiempo || 30} 
+                    onChange={(e) => setFormData({...formData, tiempo: parseInt(e.target.value)})}
+                  />
+                </div>
+              </>
+            );
+          case 'dialogos':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Tiempo verbal</label>
+                  <select 
+                    value={formData.tiempo || 'presente'} 
+                    onChange={(e) => setFormData({...formData, tiempo: e.target.value})}
+                  >
+                    <option value="presente">Presente</option>
+                    <option value="pasado">Pasado (Pretérito)</option>
+                    <option value="imperfecto">Imperfecto</option>
+                    <option value="futuro">Futuro</option>
+                    <option value="subjuntivo">Subjuntivo</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Situación</label>
+                  <textarea 
+                    value={formData.situacion || ''} 
+                    onChange={(e) => setFormData({...formData, situacion: e.target.value})}
+                    required
+                    rows={3}
+                  />
+                </div>
+              </>
+            );
+          case 'roleplay':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Escena</label>
+                  <input 
+                    type="text" 
+                    value={formData.escena || ''} 
+                    onChange={(e) => setFormData({...formData, escena: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Rol Jugador 1</label>
+                  <input 
+                    type="text" 
+                    value={formData.rol1 || ''} 
+                    onChange={(e) => setFormData({...formData, rol1: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Rol Jugador 2</label>
+                  <input 
+                    type="text" 
+                    value={formData.rol2 || ''} 
+                    onChange={(e) => setFormData({...formData, rol2: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Instrucciones</label>
+                  <textarea 
+                    value={formData.instrucciones || ''} 
+                    onChange={(e) => setFormData({...formData, instrucciones: e.target.value})}
+                    required
+                    rows={3}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Vocabulario útil (separado por coma)</label>
+                  <input 
+                    type="text" 
+                    value={formData.vocabularioText || ''} 
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      vocabularioText: e.target.value,
+                      vocabulario: e.target.value.split(',').map(w => w.trim())
+                    })}
+                  />
+                </div>
+              </>
+            );
+          case 'preguntas':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Pregunta</label>
+                  <textarea 
+                    value={formData.pregunta || ''} 
+                    onChange={(e) => setFormData({...formData, pregunta: e.target.value})}
+                    required
+                    rows={2}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Ayuda (opcional)</label>
+                  <input 
+                    type="text" 
+                    value={formData.ayuda || ''} 
+                    onChange={(e) => setFormData({...formData, ayuda: e.target.value})}
+                  />
+                </div>
+              </>
+            );
+          case 'adivinanza':
+            return (
+              <>
+                <div className="form-group">
+                  <label>Palabra a adivinar</label>
+                  <input 
+                    type="text" 
+                    value={formData.respuesta || ''} 
+                    onChange={(e) => setFormData({...formData, respuesta: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Pistas (separadas por coma)</label>
+                  <input 
+                    type="text" 
+                    value={formData.pistasText || ''} 
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      pistasText: e.target.value,
+                      pistas: e.target.value.split(',').map(w => w.trim())
+                    })}
+                  />
+                </div>
+              </>
+            );
+          default:
+            return null;
+        }
+      };
+
+      return (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Añadir tarea: {collection}</h2>
+            <form onSubmit={handleSubmit}>
+              {renderFields()}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button type="submit" className="btn btn-success">Guardar</button>
+                <button type="button" className="btn btn-outline" onClick={onClose}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ RENDER APP ============
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(e(App));
+    root.render(<App />);
   </script>
 </body>
 </html>
