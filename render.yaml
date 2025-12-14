@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: juegos
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FIREBASE_PROJECT_ID
+        scope: run
+      - key: FIREBASE_PRIVATE_KEY
+        scope: run
+      - key: FIREBASE_CLIENT_EMAIL
+        scope: run
+      - key: ADMIN_PASSWORD
+        scope: run
