@@ -909,6 +909,18 @@
           if (data.playerCount === 2) {
             setWaitingForPartner(false);
           }
+          // Set game type if provided (for player 2)
+          if (data.gameType) {
+            const game = GAMES.find(g => g.id === data.gameType);
+            if (game) setSelectedGame(game);
+          }
+        });
+
+        socket.on('game_info', (data) => {
+          if (data.gameType) {
+            const game = GAMES.find(g => g.id === data.gameType);
+            if (game) setSelectedGame(game);
+          }
         });
 
         socket.on('game_started', (data) => {
@@ -916,6 +928,12 @@
           setCurrentTask(data.tasks?.[0] || null);
           setGameStarted(true);
           setTimer(data.time || 60);
+          setScreen('game'); // IMPORTANT: Switch to game screen!
+          // Set game type (needed for player 2)
+          if (data.gameType) {
+            const game = GAMES.find(g => g.id === data.gameType);
+            if (game) setSelectedGame(game);
+          }
         });
 
         socket.on('scores_updated', (newScores) => {
@@ -954,6 +972,7 @@
         return () => {
           socket.off('game_created');
           socket.off('player_joined');
+          socket.off('game_info');
           socket.off('game_started');
           socket.off('scores_updated');
           socket.off('timer_update');
@@ -1064,35 +1083,72 @@
         );
       }
 
-      // Game screens will be added below...
+      if (screen === 'game' || gameStarted) {
+        // Game screen
+        return (
+          <div className="app-container">
+            <div className="game-screen fade-in">
+              <div className="game-header">
+                <button className="back-btn" onClick={goBack}>← Volver</button>
+                <div className={`timer ${timer <= 10 ? 'danger' : timer <= 30 ? 'warning' : ''}`}>
+                  {Math.floor(timer/60)}:{(timer%60).toString().padStart(2, '0')}
+                </div>
+              </div>
+              
+              <Scoreboard scores={scores} />
+              
+              {selectedGame && currentTask ? (
+                <GameRenderer 
+                  game={selectedGame}
+                  currentTask={currentTask}
+                  tasks={tasks}
+                  taskIndex={taskIndex}
+                  playerRole={playerRole}
+                  onSubmit={submitAnswer}
+                  onScore={updateScore}
+                  onNext={nextTask}
+                  wordsSubmitted={wordsSubmitted}
+                  inputValue={inputValue}
+                  setInputValue={setInputValue}
+                  history={history}
+                  socket={socket}
+                  roomCode={roomCode}
+                />
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="loader" style={{ width: '50px', height: '50px', border: '4px solid #eee', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div>
+                  <p style={{ marginTop: '20px', color: '#666' }}>Cargando juego...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (screen === 'results') {
+        return (
+          <div className="app-container">
+            <div className="game-screen fade-in" style={{ textAlign: 'center' }}>
+              <h1 style={{ fontSize: '3rem', marginBottom: '20px' }}>🎉 ¡Fin del juego!</h1>
+              <Scoreboard scores={scores} />
+              <div style={{ marginTop: '30px' }}>
+                <button className="btn btn-primary" onClick={goBack}>
+                  Volver al menú
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Fallback - should not reach here
       return (
         <div className="app-container">
-          <div className="game-screen fade-in">
-            <div className="game-header">
-              <button className="back-btn" onClick={goBack}>← Volver</button>
-              <div className="timer">{Math.floor(timer/60)}:{(timer%60).toString().padStart(2, '0')}</div>
-            </div>
-            
-            <Scoreboard scores={scores} />
-            
-            {selectedGame && (
-              <GameRenderer 
-                game={selectedGame}
-                currentTask={currentTask}
-                tasks={tasks}
-                taskIndex={taskIndex}
-                playerRole={playerRole}
-                onSubmit={submitAnswer}
-                onScore={updateScore}
-                onNext={nextTask}
-                wordsSubmitted={wordsSubmitted}
-                inputValue={inputValue}
-                setInputValue={setInputValue}
-                history={history}
-                socket={socket}
-                roomCode={roomCode}
-              />
-            )}
+          <div className="game-screen fade-in" style={{ textAlign: 'center', padding: '40px' }}>
+            <p>Pantalla no encontrada</p>
+            <button className="btn btn-primary" onClick={goBack} style={{ marginTop: '20px' }}>
+              Volver al menú
+            </button>
           </div>
         </div>
       );
