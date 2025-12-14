@@ -289,7 +289,11 @@ io.on('connection', (socket) => {
     players.set(socket.id, { gameId: roomCode, role: 'player2' });
 
     socket.join(roomCode);
-    io.to(roomCode).emit('player_joined', { playerCount: 2 });
+    
+    // Send game type to player 2
+    socket.emit('game_info', { gameType: game.type });
+    
+    io.to(roomCode).emit('player_joined', { playerCount: 2, gameType: game.type });
     
     console.log(`👥 Jugador 2 se unió a: ${roomCode}`);
   });
