@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "concurrently \"node server.js\" \"vite\"",
-    "build": "npm install && vite build",
+    "build": "npx vite build",
     "preview": "vite preview"
   },
   "dependencies": {
