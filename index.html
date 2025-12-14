@@ -5,17 +5,246 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Juegos para Aprender Español</title>
   <style>
-    body {
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    #root {
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .menu-container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 2.5em;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 1.1em;
+    }
+
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .game-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .game-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .game-card h3 {
+      margin-bottom: 10px;
+      font-size: 1.3em;
+    }
+
+    .game-card p {
+      margin-bottom: 15px;
+      font-size: 0.95em;
+      opacity: 0.9;
+    }
+
+    .game-card button {
+      width: 100%;
+      padding: 10px;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .game-card button:hover {
+      background: #f0f0f0;
+    }
+
+    .admin-btn {
+      display: block;
+      margin: 0 auto;
+      padding: 15px 30px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .admin-btn:hover {
+      background: #ff5252;
+      transform: scale(1.05);
+    }
+
+    .loading {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module" src="./index.jsx"></script>
+  <div id="root">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Cargando juegos...</p>
+    </div>
+  </div>
+
+  <!-- React из CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Socket.io -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Приложение -->
+  <script>
+    const { useState, useEffect } = React;
+    const e = React.createElement;
+
+    // Главное меню
+    function MainMenu({ onSelectGame, onAdminClick }) {
+      const games = [
+        { id: 'tabu', name: '🤐 Tabú', desc: 'Объясняй слово без запретных слов' },
+        { id: 'conjugacion', name: '📝 Спряжение глаголов', desc: 'Один спрягает, другой отвечает' },
+        { id: 'palabrasPorTema', name: '⚡ Слова по теме (30 сек)', desc: 'Сколько слов ты знаешь?' },
+        { id: 'dialogos', name: '💬 Диалоги времён', desc: 'Практика past/present/subjuntivo' },
+        { id: 'roleplay', name: '🎭 Roleplay Barcelona', desc: 'В кафе, магазине, на улице' },
+        { id: 'preguntas', name: '❓ Личные вопросы', desc: 'Отвечай на личные вопросы' },
+        { id: 'encadenamiento', name: '🔗 Цепочка слов', desc: 'Последняя буква = первая буква' },
+        { id: 'adivinanza', name: '🤔 Угадай слово', desc: 'Угадывание по описанию' },
+        { id: 'batalla', name: '⚔️ Battaglia глаголов', desc: 'Кто больше глаголов вспомнит?' },
+        { id: 'charadas', name: '🎪 Charadas', desc: 'Мимика и описание без слова' }
+      ];
+
+      return e('div', { className: 'menu-container' },
+        e('h1', null, '🎮 Juegos para aprender español'),
+        e('p', { className: 'subtitle' }, 'Elige un juego para jugar con tu compañero'),
+        
+        e('div', { className: 'games-grid' },
+          games.map(game => 
+            e('div', { key: game.id, className: 'game-card', onClick: () => onSelectGame(game.id) },
+              e('h3', null, game.name),
+              e('p', null, game.desc),
+              e('button', null, 'Jugar')
+            )
+          )
+        ),
+
+        e('button', { className: 'admin-btn', onClick: onAdminClick }, '👨‍🏫 Administrador')
+      );
+    }
+
+    // Простой экран загрузки
+    function LoadingScreen() {
+      return e('div', { className: 'loading' },
+        e('div', { className: 'spinner' }),
+        e('p', null, 'Conectando al servidor...')
+      );
+    }
+
+    // Главное приложение
+    function App() {
+      const [socket, setSocket] = useState(null);
+      const [connected, setConnected] = useState(false);
+
+      useEffect(() => {
+        const newSocket = io();
+        setSocket(newSocket);
+
+        newSocket.on('connect', () => {
+          setConnected(true);
+          console.log('✅ Conectado al servidor');
+        });
+
+        newSocket.on('disconnect', () => {
+          setConnected(false);
+        });
+
+        return () => newSocket.close();
+      }, []);
+
+      if (!connected) {
+        return e(LoadingScreen);
+      }
+
+      return e(MainMenu, { 
+        onSelectGame: (type) => alert(`Seleccionaste: ${type}\n\n(Próximamente la funcionalidad completa)`),
+        onAdminClick: () => alert('Admin panel (próximamente)')
+      });
+    }
+
+    // Renderizar
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(e(App));
+  </script>
 </body>
 </html>
