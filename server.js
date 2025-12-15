@@ -12,7 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Firebase setup
+// Firebase
 const serviceAccount = {
   type: "service_account",
   project_id: process.env.FIREBASE_PROJECT_ID,
@@ -30,159 +30,188 @@ const db = admin.firestore();
 app.use(express.static('public'));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// ============ DATA STORAGE ============
 const rooms = new Map();
 const players = new Map();
 
-// ============ DEFAULT TASKS ============
+// ============ TASKS FROM DOCUMENT ============
 const DEFAULT_TASKS = {
   tabu: [
-    { palabra: 'supermercado', prohibidas: ['comprar', 'comida', 'tienda'], nivel: 'A2' },
-    { palabra: 'metro', prohibidas: ['tren', 'transporte', 'subterráneo'], nivel: 'A2' },
-    { palabra: 'apartamento', prohibidas: ['casa', 'vivir', 'piso'], nivel: 'A2' },
-    { palabra: 'paella', prohibidas: ['arroz', 'España', 'comida'], nivel: 'A2' },
-    { palabra: 'playa', prohibidas: ['mar', 'arena', 'nadar'], nivel: 'A2' },
-    { palabra: 'farmacia', prohibidas: ['medicina', 'enfermo', 'comprar'], nivel: 'A2' },
-    { palabra: 'biblioteca', prohibidas: ['libros', 'leer', 'estudiar'], nivel: 'A2' },
-    { palabra: 'gimnasio', prohibidas: ['ejercicio', 'deporte', 'músculos'], nivel: 'A2' },
-    { palabra: 'restaurante', prohibidas: ['comer', 'comida', 'camarero'], nivel: 'A2' },
-    { palabra: 'peluquería', prohibidas: ['pelo', 'cortar', 'tijeras'], nivel: 'A2' },
-    { palabra: 'aeropuerto', prohibidas: ['avión', 'volar', 'viajar'], nivel: 'A2' },
-    { palabra: 'hospital', prohibidas: ['médico', 'enfermo', 'enfermera'], nivel: 'A2' },
-    { palabra: 'panadería', prohibidas: ['pan', 'comprar', 'horno'], nivel: 'A2' },
-    { palabra: 'zapatería', prohibidas: ['zapatos', 'comprar', 'pies'], nivel: 'A2' },
-    { palabra: 'lavadora', prohibidas: ['ropa', 'lavar', 'agua'], nivel: 'A2' },
-    { palabra: 'nevera', prohibidas: ['frío', 'comida', 'cocina'], nivel: 'A2' },
-    { palabra: 'vecino', prohibidas: ['vivir', 'cerca', 'edificio'], nivel: 'A2' },
-    { palabra: 'tarjeta', prohibidas: ['pagar', 'banco', 'dinero'], nivel: 'A2' },
-    { palabra: 'cumpleaños', prohibidas: ['fiesta', 'años', 'regalo'], nivel: 'A2' },
-    { palabra: 'vacaciones', prohibidas: ['descansar', 'viajar', 'verano'], nivel: 'A2' }
+    { palabra: 'alquiler', prohibidas: ['piso', 'pagar', 'contrato', 'dinero', 'mes'] },
+    { palabra: 'jefe', prohibidas: ['trabajo', 'empresa', 'persona', 'mandar', 'oficina'] },
+    { palabra: 'cita', prohibidas: ['médico', 'hora', 'hospital', 'visitar', 'salud'] },
+    { palabra: 'pareja', prohibidas: ['amor', 'novio', 'novia', 'relación', 'persona'] },
+    { palabra: 'mudanza', prohibidas: ['piso', 'cajas', 'cambiar', 'casa', 'vivir'] },
+    { palabra: 'sueldo', prohibidas: ['dinero', 'trabajo', 'cobrar', 'mes', 'pagar'] },
+    { palabra: 'resfriado', prohibidas: ['nariz', 'tos', 'gripe', 'frío', 'enfermo'] },
+    { palabra: 'horario', prohibidas: ['trabajo', 'tiempo', 'horas', 'empezar', 'terminar'] },
+    { palabra: 'entrevista', prohibidas: ['trabajo', 'preguntas', 'empresa', 'jefe', 'hablar'] },
+    { palabra: 'contrato', prohibidas: ['firmar', 'trabajo', 'piso', 'papel', 'acuerdo'] },
+    { palabra: 'descanso', prohibidas: ['dormir', 'parar', 'trabajo', 'tiempo', 'cansado'] },
+    { palabra: 'urgencias', prohibidas: ['hospital', 'médico', 'rápido', 'dolor', 'salud'] },
+    { palabra: 'vecino', prohibidas: ['vivir', 'cerca', 'edificio', 'piso', 'puerta'] },
+    { palabra: 'farmacia', prohibidas: ['medicina', 'enfermo', 'comprar', 'pastillas', 'receta'] },
+    { palabra: 'supermercado', prohibidas: ['comprar', 'comida', 'tienda', 'carro', 'productos'] },
+    { palabra: 'gimnasio', prohibidas: ['ejercicio', 'deporte', 'músculos', 'entrenar', 'máquinas'] },
+    { palabra: 'restaurante', prohibidas: ['comer', 'comida', 'camarero', 'mesa', 'carta'] },
+    { palabra: 'peluquería', prohibidas: ['pelo', 'cortar', 'tijeras', 'peinar', 'lavar'] },
+    { palabra: 'biblioteca', prohibidas: ['libros', 'leer', 'estudiar', 'silencio', 'prestar'] },
+    { palabra: 'aeropuerto', prohibidas: ['avión', 'volar', 'viajar', 'maleta', 'pasaporte'] }
   ],
   conjugacion: [
-    { verbo: 'tener', pregunta: '¿Cuántos años _____ (tú)?', respuesta: 'tienes', nivel: 'A2' },
-    { verbo: 'hacer', pregunta: '¿Qué _____ (tú) los fines de semana?', respuesta: 'haces', nivel: 'A2' },
-    { verbo: 'poner', pregunta: '¿Dónde _____ (tú) las llaves?', respuesta: 'pones', nivel: 'A2' },
-    { verbo: 'salir', pregunta: '¿A qué hora _____ (tú) de casa?', respuesta: 'sales', nivel: 'A2' },
-    { verbo: 'conocer', pregunta: '¿_____ (tú) Barcelona bien?', respuesta: 'Conoces', nivel: 'A2' },
-    { verbo: 'saber', pregunta: '¿_____ (tú) cocinar paella?', respuesta: 'Sabes', nivel: 'A2' },
-    { verbo: 'poder', pregunta: '¿_____ (tú) ayudarme?', respuesta: 'Puedes', nivel: 'A2' },
-    { verbo: 'querer', pregunta: '¿_____ (tú) ir al cine?', respuesta: 'Quieres', nivel: 'A2' },
-    { verbo: 'preferir', pregunta: '¿Qué _____ (tú), café o té?', respuesta: 'prefieres', nivel: 'A2' },
-    { verbo: 'levantarse', pregunta: '¿A qué hora _____ (tú)?', respuesta: 'te levantas', nivel: 'A2' },
-    { verbo: 'acostarse', pregunta: '¿A qué hora _____ (tú)?', respuesta: 'te acuestas', nivel: 'A2' },
-    { verbo: 'ducharse', pregunta: '¿Por la mañana o por la noche _____ (tú)?', respuesta: 'te duchas', nivel: 'A2' },
-    { verbo: 'vestirse', pregunta: '¿Cómo _____ (tú) para ir al trabajo?', respuesta: 'te vistes', nivel: 'A2' },
-    { verbo: 'ir', pregunta: '¿Cómo _____ (tú) al trabajo?', respuesta: 'vas', nivel: 'A2' },
-    { verbo: 'venir', pregunta: '¿De dónde _____ (tú)?', respuesta: 'vienes', nivel: 'A2' },
-    { verbo: 'traer', pregunta: '¿Qué _____ (tú) a la fiesta?', respuesta: 'traes', nivel: 'A2' }
+    { verbo: 'trabajar', pregunta: '¿Dónde _____ antes de venir a Barcelona?', respuesta: 'trabajaba / trabajé' },
+    { verbo: 'vivir', pregunta: '¿Cuánto tiempo _____ aquí?', respuesta: 'he vivido / llevo viviendo' },
+    { verbo: 'buscar', pregunta: '¿Qué _____ ahora?', respuesta: 'busco' },
+    { verbo: 'tener', pregunta: '¿Cuántos años _____?', respuesta: 'tienes' },
+    { verbo: 'hacer', pregunta: '¿Qué _____ ayer después del trabajo?', respuesta: 'hice' },
+    { verbo: 'ir', pregunta: '¿Cómo _____ al trabajo normalmente?', respuesta: 'voy / vas' },
+    { verbo: 'poder', pregunta: '¿_____ ayudarme con esto?', respuesta: 'Puedes' },
+    { verbo: 'querer', pregunta: '¿Qué _____ hacer este fin de semana?', respuesta: 'quieres' },
+    { verbo: 'saber', pregunta: '¿_____ cocinar comida española?', respuesta: 'Sabes' },
+    { verbo: 'conocer', pregunta: '¿_____ bien el centro de Barcelona?', respuesta: 'Conoces' },
+    { verbo: 'levantarse', pregunta: '¿A qué hora _____ normalmente?', respuesta: 'te levantas / me levanto' },
+    { verbo: 'acostarse', pregunta: '¿A qué hora _____ ayer?', respuesta: 'te acostaste / me acosté' },
+    { verbo: 'sentirse', pregunta: '¿Cómo _____ hoy?', respuesta: 'te sientes / me siento' },
+    { verbo: 'gustar', pregunta: '¿Qué comida española _____ más?', respuesta: 'te gusta' },
+    { verbo: 'parecer', pregunta: '¿Qué _____ Barcelona?', respuesta: 'te parece' }
   ],
   palabrasPorTema: [
-    { tema: 'Comida española', nivel: 'A2' },
-    { tema: 'Partes del cuerpo', nivel: 'A2' },
-    { tema: 'Ropa de verano', nivel: 'A2' },
-    { tema: 'Transporte en Barcelona', nivel: 'A2' },
-    { tema: 'Muebles de casa', nivel: 'A2' },
-    { tema: 'Profesiones', nivel: 'A2' },
-    { tema: 'Animales', nivel: 'A2' },
-    { tema: 'Frutas y verduras', nivel: 'A2' },
-    { tema: 'Colores', nivel: 'A2' },
-    { tema: 'Días y meses', nivel: 'A2' },
-    { tema: 'Lugares de Barcelona', nivel: 'A2' },
-    { tema: 'Bebidas', nivel: 'A2' },
-    { tema: 'Deportes', nivel: 'A2' },
-    { tema: 'Electrodomésticos', nivel: 'A2' },
-    { tema: 'Tiempo atmosférico', nivel: 'A2' }
+    { tema: 'Comida española' },
+    { tema: 'Trabajo y oficina' },
+    { tema: 'Partes del cuerpo' },
+    { tema: 'Ropa' },
+    { tema: 'Transporte en Barcelona' },
+    { tema: 'Muebles de casa' },
+    { tema: 'Profesiones' },
+    { tema: 'Animales' },
+    { tema: 'Frutas y verduras' },
+    { tema: 'La ciudad' },
+    { tema: 'El tiempo (clima)' },
+    { tema: 'Emociones y sentimientos' },
+    { tema: 'Ocio y tiempo libre' },
+    { tema: 'Salud y médico' },
+    { tema: 'Tecnología' }
   ],
   dialogos: [
-    { tiempo: 'presente', situacion: 'Estás en un café con tu amigo. Habla de tu rutina diaria.', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta qué hiciste ayer después del trabajo.', nivel: 'A2' },
-    { tiempo: 'imperfecto', situacion: 'Describe cómo era tu vida en tu país antes de venir a España.', nivel: 'A2' },
-    { tiempo: 'futuro', situacion: 'Habla de tus planes para las próximas vacaciones.', nivel: 'A2' },
-    { tiempo: 'presente', situacion: 'Describe tu barrio y qué hay cerca de tu casa.', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta una experiencia divertida que tuviste en Barcelona.', nivel: 'A2' },
-    { tiempo: 'imperfecto', situacion: 'Describe cómo eran tus veranos cuando eras niño/a.', nivel: 'A2' },
-    { tiempo: 'futuro', situacion: 'Habla de lo que harás este fin de semana.', nivel: 'A2' },
-    { tiempo: 'presente', situacion: 'Describe tu trabajo o estudios actuales.', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta tu último viaje.', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Da consejos a un amigo que quiere aprender español.', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Expresa deseos para el año nuevo.', nivel: 'A2' },
-    { tiempo: 'presente', situacion: 'Habla sobre tu comida favorita y cómo se prepara.', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta cómo fue tu primera semana en Barcelona.', nivel: 'A2' },
-    { tiempo: 'futuro', situacion: 'Describe cómo será tu vida dentro de 5 años.', nivel: 'A2' }
+    { situacion: '☕️ Café', fraseA: 'Trabajo en un café.', clave: 'AHORA', claveExplicacion: 'sейчас - presente' },
+    { situacion: '🏠 Casa', fraseA: 'Vivo en Barcelona.', clave: 'ANTES', claveExplicacion: 'раньше - imperfecto' },
+    { situacion: '😴 Cansancio', fraseA: 'Hoy trabajo hasta tarde.', clave: 'YA', claveExplicacion: 'уже/результат' },
+    { situacion: '⏰ Llegar tarde', fraseA: 'Llego tarde al trabajo.', clave: 'QUIERO', claveExplicacion: 'хочу чтобы - subjuntivo' },
+    { situacion: '🏥 Dolor', fraseA: 'Me duele la espalda.', clave: 'NECESITO', claveExplicacion: 'нужно чтобы - subjuntivo' },
+    { situacion: '🍽️ Restaurante', fraseA: 'Vamos a un restaurante nuevo.', clave: 'ANTES', claveExplicacion: 'раньше - imperfecto' },
+    { situacion: '📚 Estudiar', fraseA: 'Estudio español todos los días.', clave: 'AHORA', claveExplicacion: 'сейчас - presente' },
+    { situacion: '🎉 Fiesta', fraseA: 'Mañana hay una fiesta.', clave: 'QUIERO', claveExplicacion: 'хочу чтобы - subjuntivo' },
+    { situacion: '🛒 Compras', fraseA: 'Necesito ir al supermercado.', clave: 'YA', claveExplicacion: 'уже/результат' },
+    { situacion: '✈️ Viaje', fraseA: 'El mes pasado fui a Madrid.', clave: 'ANTES', claveExplicacion: 'раньше - imperfecto' },
+    { situacion: '🏋️ Gimnasio', fraseA: 'Voy al gimnasio tres veces a la semana.', clave: 'AHORA', claveExplicacion: 'сейчас - presente' },
+    { situacion: '📱 Teléfono', fraseA: 'Mi teléfono no funciona bien.', clave: 'NECESITO', claveExplicacion: 'нужно чтобы - subjuntivo' }
   ],
   roleplay: [
-    { escena: 'En el bar', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide algo de beber y comer', vocabulario: ['poner', 'cuenta', 'propina', 'terraza'], nivel: 'A2' },
-    { escena: 'En el supermercado', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Pregunta dónde están los productos', vocabulario: ['pasillo', 'oferta', 'bolsa', 'caja'], nivel: 'A2' },
-    { escena: 'En el metro', rol1: 'Turista', rol2: 'Pasajero local', instrucciones: 'Pide indicaciones para llegar a Sagrada Familia', vocabulario: ['línea', 'transbordo', 'parada', 'billete'], nivel: 'A2' },
-    { escena: 'En la farmacia', rol1: 'Cliente', rol2: 'Farmacéutico', instrucciones: 'Explica tus síntomas y pide medicina', vocabulario: ['dolor', 'receta', 'pastillas', 'jarabe'], nivel: 'A2' },
-    { escena: 'En el médico', rol1: 'Paciente', rol2: 'Médico', instrucciones: 'Describe cómo te sientes', vocabulario: ['fiebre', 'dolor', 'cita', 'análisis'], nivel: 'A2' },
-    { escena: 'En una tienda de ropa', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Busca una camiseta y pregunta por tallas', vocabulario: ['probador', 'talla', 'rebaja', 'quedar'], nivel: 'A2' },
-    { escena: 'En un restaurante', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide el menú del día y pregunta por alergias', vocabulario: ['carta', 'primer plato', 'postre', 'cuenta'], nivel: 'A2' },
-    { escena: 'Alquilando un piso', rol1: 'Inquilino', rol2: 'Propietario', instrucciones: 'Pregunta sobre el piso y las condiciones', vocabulario: ['fianza', 'gastos', 'amueblado', 'contrato'], nivel: 'A2' },
-    { escena: 'En la playa', rol1: 'Turista', rol2: 'Socorrista', instrucciones: 'Pregunta sobre las normas de la playa', vocabulario: ['bandera', 'sombrilla', 'chiringuito', 'olas'], nivel: 'A2' },
-    { escena: 'En el banco', rol1: 'Cliente', rol2: 'Empleado', instrucciones: 'Quieres abrir una cuenta', vocabulario: ['cuenta', 'tarjeta', 'transferencia', 'cajero'], nivel: 'A2' },
-    { escena: 'En la peluquería', rol1: 'Cliente', rol2: 'Peluquero', instrucciones: 'Explica cómo quieres el corte de pelo', vocabulario: ['cortar', 'flequillo', 'teñir', 'lavar'], nivel: 'A2' },
-    { escena: 'Llamada telefónica', rol1: 'Llamador', rol2: 'Receptor', instrucciones: 'Llama para hacer una reserva en un restaurante', vocabulario: ['reservar', 'mesa', 'persona', 'hora'], nivel: 'A2' },
-    { escena: 'En el gimnasio', rol1: 'Nuevo cliente', rol2: 'Recepcionista', instrucciones: 'Pregunta por las tarifas y horarios', vocabulario: ['abono', 'clase', 'vestuario', 'entrenador'], nivel: 'A2' },
-    { escena: 'En el aeropuerto', rol1: 'Pasajero', rol2: 'Personal de facturación', instrucciones: 'Factura tu maleta y pregunta por la puerta', vocabulario: ['equipaje', 'embarque', 'puerta', 'asiento'], nivel: 'A2' },
-    { escena: 'En una fiesta', rol1: 'Invitado nuevo', rol2: 'Anfitrión', instrucciones: 'Preséntate y conoce a la gente', vocabulario: ['presentar', 'conocer', 'encantado', 'copa'], nivel: 'A2' }
+    { escena: 'Café', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide algo de beber y comer', vocabulario: ['poner', 'cuenta', 'propina', 'terraza', 'carta'] },
+    { escena: 'Médico', rol1: 'Paciente', rol2: 'Médico', instrucciones: 'Explica tus síntomas', vocabulario: ['dolor', 'fiebre', 'receta', 'análisis', 'cita'] },
+    { escena: 'Piso (alquiler)', rol1: 'Inquilino', rol2: 'Propietario', instrucciones: 'Pregunta sobre el piso', vocabulario: ['fianza', 'gastos', 'amueblado', 'contrato', 'habitación'] },
+    { escena: 'Tienda de ropa', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Busca una camiseta', vocabulario: ['talla', 'probador', 'rebaja', 'quedar', 'color'] },
+    { escena: 'Transporte', rol1: 'Turista', rol2: 'Pasajero', instrucciones: 'Pide indicaciones para Sagrada Familia', vocabulario: ['línea', 'transbordo', 'parada', 'billete', 'dirección'] },
+    { escena: 'Trámite oficial', rol1: 'Ciudadano', rol2: 'Funcionario', instrucciones: 'Pide información sobre un documento', vocabulario: ['formulario', 'cita previa', 'fotocopia', 'plazo', 'requisito'] }
   ],
   preguntas: [
-    { pregunta: '¿Por qué decidiste venir a Barcelona?', ayuda: 'Trabajo, estudios, familia, clima, cultura...', nivel: 'A2' },
-    { pregunta: '¿Qué es lo que más te gusta de vivir en España?', ayuda: 'Comida, gente, clima, cultura, idioma...', nivel: 'A2' },
-    { pregunta: '¿Qué echas de menos de tu país?', ayuda: 'Familia, amigos, comida, costumbres...', nivel: 'A2' },
-    { pregunta: '¿Cuál fue tu momento más difícil al llegar a España?', ayuda: 'Idioma, burocracia, cultura, soledad...', nivel: 'A2' },
-    { pregunta: '¿Qué haces en tu tiempo libre en Barcelona?', ayuda: 'Deportes, paseos, amigos, cultura...', nivel: 'A2' },
-    { pregunta: '¿Has visitado otras ciudades de España? ¿Cuáles?', ayuda: 'Madrid, Valencia, Sevilla, Granada...', nivel: 'A2' },
-    { pregunta: '¿Cómo es tu rutina diaria?', ayuda: 'Mañana, tarde, noche, trabajo, estudio...', nivel: 'A2' },
-    { pregunta: '¿Qué comida española te gusta más? ¿Y menos?', ayuda: 'Paella, tortilla, jamón, gazpacho...', nivel: 'A2' },
-    { pregunta: '¿Celebras las fiestas españolas? ¿Cuáles?', ayuda: 'Sant Jordi, La Mercè, Navidad, Reyes...', nivel: 'A2' },
-    { pregunta: '¿Cómo es tu barrio? ¿Te gusta vivir allí?', ayuda: 'Tranquilo, ruidoso, céntrico, servicios...', nivel: 'A2' },
-    { pregunta: '¿Qué planes tienes para el futuro en España?', ayuda: 'Trabajo, estudios, familia, viajes...', nivel: 'A2' },
-    { pregunta: '¿Qué diferencias culturales has notado entre tu país y España?', ayuda: 'Horarios, comida, relaciones, trabajo...', nivel: 'A2' },
-    { pregunta: '¿Cómo conociste a tus amigos en Barcelona?', ayuda: 'Trabajo, estudios, vecinos, actividades...', nivel: 'A2' },
-    { pregunta: '¿Qué consejos darías a alguien que viene a vivir a Barcelona?', ayuda: 'Idioma, papeles, vivienda, trabajo...', nivel: 'A2' },
-    { pregunta: '¿Cuál es tu lugar favorito de Barcelona?', ayuda: 'Parque, playa, barrio, edificio...', nivel: 'A2' }
+    // A1 (20)
+    { pregunta: '¿Dónde vives ahora?', nivel: 'A1' },
+    { pregunta: '¿Trabajas o estudias?', nivel: 'A1' },
+    { pregunta: '¿Te gusta Barcelona?', nivel: 'A1' },
+    { pregunta: '¿Cómo vas al trabajo?', nivel: 'A1' },
+    { pregunta: '¿Qué comes normalmente?', nivel: 'A1' },
+    { pregunta: '¿Hablas español en tu trabajo?', nivel: 'A1' },
+    { pregunta: '¿Con quién vives?', nivel: 'A1' },
+    { pregunta: '¿Qué haces los fines de semana?', nivel: 'A1' },
+    { pregunta: '¿Qué barrio te gusta?', nivel: 'A1' },
+    { pregunta: '¿A qué hora empiezas a trabajar?', nivel: 'A1' },
+    { pregunta: '¿Qué idioma hablas en casa?', nivel: 'A1' },
+    { pregunta: '¿Te gusta tu piso?', nivel: 'A1' },
+    { pregunta: '¿Tienes amigos aquí?', nivel: 'A1' },
+    { pregunta: '¿Vas en metro o bus?', nivel: 'A1' },
+    { pregunta: '¿Cocinas en casa?', nivel: 'A1' },
+    { pregunta: '¿Trabajas cerca o lejos?', nivel: 'A1' },
+    { pregunta: '¿Te gusta aprender español?', nivel: 'A1' },
+    { pregunta: '¿Sales mucho por la noche?', nivel: 'A1' },
+    { pregunta: '¿Vas al médico aquí?', nivel: 'A1' },
+    { pregunta: '¿Te gusta el clima?', nivel: 'A1' },
+    // A2 (20)
+    { pregunta: '¿Por qué viniste a Barcelona?', nivel: 'A2' },
+    { pregunta: '¿Qué fue lo más difícil al llegar?', nivel: 'A2' },
+    { pregunta: '¿Qué hacías antes de venir?', nivel: 'A2' },
+    { pregunta: '¿Qué haces ahora diferente?', nivel: 'A2' },
+    { pregunta: '¿Qué te gusta más de la ciudad?', nivel: 'A2' },
+    { pregunta: '¿Qué no te gusta y por qué?', nivel: 'A2' },
+    { pregunta: '¿Cómo era tu vida antes?', nivel: 'A2' },
+    { pregunta: '¿Qué has aprendido este año?', nivel: 'A2' },
+    { pregunta: '¿Qué barrio te gustaba antes?', nivel: 'A2' },
+    { pregunta: '¿Dónde trabajabas antes?', nivel: 'A2' },
+    { pregunta: '¿Qué idioma usas más ahora?', nivel: 'A2' },
+    { pregunta: '¿Qué has cambiado en tus hábitos?', nivel: 'A2' },
+    { pregunta: '¿Qué necesitas mejorar en español?', nivel: 'A2' },
+    { pregunta: '¿Qué fue lo más sorprendente?', nivel: 'A2' },
+    { pregunta: '¿Qué extrañas de tu país?', nivel: 'A2' },
+    { pregunta: '¿Qué te gustaría cambiar?', nivel: 'A2' },
+    { pregunta: '¿Qué has hecho este mes?', nivel: 'A2' },
+    { pregunta: '¿Cómo era tu trabajo antes?', nivel: 'A2' },
+    { pregunta: '¿Qué haces ahora mejor?', nivel: 'A2' },
+    { pregunta: '¿Qué esperas del próximo año?', nivel: 'A2' }
   ],
   adivinanza: [
-    { respuesta: 'playa', pistas: ['arena', 'mar', 'sol', 'verano', 'Barceloneta'], nivel: 'A2' },
-    { respuesta: 'metro', pistas: ['transporte', 'bajo tierra', 'rápido', 'L1 L2 L3'], nivel: 'A2' },
-    { respuesta: 'paella', pistas: ['arroz', 'Valencia', 'sartén grande', 'marisco'], nivel: 'A2' },
-    { respuesta: 'Sagrada Familia', pistas: ['Gaudí', 'iglesia', 'turistas', 'famosa'], nivel: 'A2' },
-    { respuesta: 'sangría', pistas: ['bebida', 'fruta', 'vino', 'verano'], nivel: 'A2' },
-    { respuesta: 'siesta', pistas: ['dormir', 'tarde', 'descanso', 'español'], nivel: 'A2' },
-    { respuesta: 'tapas', pistas: ['pequeño', 'bar', 'compartir', 'comida'], nivel: 'A2' },
-    { respuesta: 'flamenco', pistas: ['baile', 'España', 'guitarra', 'vestido'], nivel: 'A2' },
-    { respuesta: 'tortilla', pistas: ['huevo', 'patata', 'redonda', 'española'], nivel: 'A2' },
-    { respuesta: 'Ramblas', pistas: ['calle', 'Barcelona', 'centro', 'turistas'], nivel: 'A2' },
-    { respuesta: 'jamón', pistas: ['cerdo', 'caro', 'ibérico', 'delicioso'], nivel: 'A2' },
-    { respuesta: 'bicing', pistas: ['bicicleta', 'Barcelona', 'alquiler', 'rojo'], nivel: 'A2' },
-    { respuesta: 'mercado', pistas: ['comida', 'fresco', 'Boquería', 'comprar'], nivel: 'A2' },
-    { respuesta: 'churros', pistas: ['frito', 'dulce', 'desayuno', 'chocolate'], nivel: 'A2' },
-    { respuesta: 'Park Güell', pistas: ['Gaudí', 'colores', 'dragón', 'vistas'], nivel: 'A2' }
+    { palabra: 'metro', pistas: ['transporte', 'bajo tierra', 'rápido', 'líneas'] },
+    { palabra: 'bar', pistas: ['bebidas', 'tapas', 'amigos', 'camarero'] },
+    { palabra: 'café', pistas: ['bebida', 'caliente', 'mañana', 'negro'] },
+    { palabra: 'cerveza', pistas: ['bebida', 'fría', 'bar', 'rubia'] },
+    { palabra: 'bocadillo', pistas: ['pan', 'jamón', 'comer', 'rápido'] },
+    { palabra: 'camisa', pistas: ['ropa', 'botones', 'trabajo', 'manga'] },
+    { palabra: 'zapatos', pistas: ['pies', 'caminar', 'cuero', 'cordones'] },
+    { palabra: 'móvil', pistas: ['llamar', 'WhatsApp', 'pantalla', 'bolsillo'] },
+    { palabra: 'llaves', pistas: ['puerta', 'abrir', 'casa', 'metal'] },
+    { palabra: 'mochila', pistas: ['espalda', 'llevar', 'cosas', 'estudiante'] },
+    { palabra: 'piso', pistas: ['vivir', 'habitaciones', 'alquiler', 'edificio'] },
+    { palabra: 'nevera', pistas: ['frío', 'cocina', 'comida', 'blanca'] },
+    { palabra: 'cama', pistas: ['dormir', 'habitación', 'almohada', 'noche'] },
+    { palabra: 'ducha', pistas: ['agua', 'baño', 'limpiar', 'jabón'] },
+    { palabra: 'médico', pistas: ['hospital', 'enfermo', 'receta', 'bata'] },
+    { palabra: 'farmacia', pistas: ['medicinas', 'pastillas', 'verde', 'cruz'] },
+    { palabra: 'trabajo', pistas: ['oficina', 'dinero', 'jefe', 'horario'] },
+    { palabra: 'dinero', pistas: ['pagar', 'euros', 'banco', 'billete'] },
+    { palabra: 'fiesta', pistas: ['bailar', 'música', 'amigos', 'noche'] },
+    { palabra: 'playa', pistas: ['arena', 'mar', 'sol', 'Barceloneta'] }
+  ],
+  batalla: [
+    { tema: 'Rutina diaria' },
+    { tema: 'Trabajo' },
+    { tema: 'Vacaciones' },
+    { tema: 'Casa y hogar' },
+    { tema: 'Cocina y comida' },
+    { tema: 'Transporte' },
+    { tema: 'Emociones' },
+    { tema: 'Deporte y salud' }
+  ],
+  cadena: [
+    { instruccion: 'La última letra de una palabra = la primera de la siguiente. ¡No repitas!' }
   ]
 };
 
-// ============ INITIALIZE TASKS ============
+// Initialize Firebase tasks
 const initializeTasks = async () => {
   try {
     for (const [collection, tasks] of Object.entries(DEFAULT_TASKS)) {
       const snapshot = await db.collection(collection).limit(1).get();
       if (snapshot.empty) {
-        console.log(`📝 Creating tasks for: ${collection}`);
+        console.log(`📝 Creating: ${collection}`);
         for (const task of tasks) {
           await db.collection(collection).add({ ...task, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         }
-        console.log(`✅ ${tasks.length} tasks created in ${collection}`);
       }
     }
-    console.log('✅ Tasks initialization complete');
+    console.log('✅ Tasks ready');
   } catch (error) {
-    console.error('Error initializing tasks:', error);
+    console.error('Firebase error:', error);
   }
 };
 
-// ============ HELPERS ============
 const generateRoomCode = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -190,33 +219,53 @@ const generateRoomCode = () => {
   return code;
 };
 
+const shuffle = (array) => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
 const getTasksForGame = async (gameType) => {
   const collectionMap = {
-    'tabu': 'tabu',
-    'conjugacion': 'conjugacion',
-    'palabras': 'palabrasPorTema',
-    'dialogos': 'dialogos',
-    'roleplay': 'roleplay',
-    'preguntas': 'preguntas',
-    'cadena': null,
-    'adivinanza': 'adivinanza',
-    'batalla': null
+    'tabu': 'tabu', 'conjugacion': 'conjugacion', 'palabras': 'palabrasPorTema',
+    'dialogos': 'dialogos', 'roleplay': 'roleplay', 'preguntas': 'preguntas',
+    'cadena': 'cadena', 'adivinanza': 'adivinanza', 'batalla': 'batalla'
   };
-  
   const collection = collectionMap[gameType];
   if (!collection) return [];
-  
   try {
     const snapshot = await db.collection(collection).get();
-    const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    for (let i = tasks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
-    }
-    return tasks.slice(0, 10);
+    let tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return shuffle(tasks).slice(0, gameType === 'cadena' ? 1 : 15);
   } catch (error) {
-    console.error('Error getting tasks:', error);
-    return DEFAULT_TASKS[collection]?.slice(0, 10) || [];
+    return shuffle(DEFAULT_TASKS[collection] || []).slice(0, 15);
+  }
+};
+
+// Timer management
+const startTimer = (roomCode) => {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  
+  if (room.timerInterval) clearInterval(room.timerInterval);
+  room.timerPaused = false;
+  
+  room.timerInterval = setInterval(() => {
+    if (!room.timerPaused && room.timer > 0) {
+      room.timer--;
+      io.to(roomCode).emit('timer_update', room.timer);
+    }
+  }, 1000);
+};
+
+const stopTimer = (roomCode) => {
+  const room = rooms.get(roomCode);
+  if (room?.timerInterval) {
+    clearInterval(room.timerInterval);
+    room.timerInterval = null;
   }
 };
 
@@ -224,46 +273,37 @@ const getTasksForGame = async (gameType) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Connected: ${socket.id}`);
 
+  // Player: Create room
   socket.on('create_room', () => {
     let roomCode;
     do { roomCode = generateRoomCode(); } while (rooms.has(roomCode));
     
-    const room = {
+    rooms.set(roomCode, {
       code: roomCode,
       players: { [socket.id]: { id: socket.id, role: 'player1', ready: false } },
       currentGame: null,
-      gameState: null,
       scores: { player1: 0, player2: 0 },
       tasks: [],
       taskIndex: 0,
       currentTurn: 'player1',
-      history: [],
-      words: [],
-      timer: null,
-      timerValue: 0
-    };
+      timer: 60,
+      timerInterval: null,
+      timerPaused: true
+    });
     
-    rooms.set(roomCode, room);
     players.set(socket.id, { roomCode, role: 'player1' });
     socket.join(roomCode);
-    
     socket.emit('room_created', { roomCode });
-    console.log(`🏠 Room created: ${roomCode}`);
+    console.log(`🏠 Room: ${roomCode}`);
   });
 
+  // Player: Join room
   socket.on('join_room', (code) => {
     const roomCode = code.toUpperCase();
     const room = rooms.get(roomCode);
     
-    if (!room) {
-      socket.emit('error', { message: 'Sala no encontrada' });
-      return;
-    }
-    
-    if (Object.keys(room.players).length >= 2) {
-      socket.emit('error', { message: 'La sala está llena' });
-      return;
-    }
+    if (!room) return socket.emit('error', { message: 'Sala no encontrada' });
+    if (Object.keys(room.players).length >= 2) return socket.emit('error', { message: 'Sala llena' });
     
     room.players[socket.id] = { id: socket.id, role: 'player2', ready: false };
     players.set(socket.id, { roomCode, role: 'player2' });
@@ -271,230 +311,157 @@ io.on('connection', (socket) => {
     
     socket.emit('room_joined', { roomCode });
     socket.to(roomCode).emit('partner_joined');
-    console.log(`👥 Player 2 joined: ${roomCode}`);
+    console.log(`👥 Joined: ${roomCode}`);
   });
 
+  // Player: Select game
   socket.on('select_game', ({ roomCode, gameType }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
-    
     room.currentGame = gameType;
-    room.gameState = 'waiting';
     Object.values(room.players).forEach(p => p.ready = false);
-    
     io.to(roomCode).emit('game_selected', { gameType });
-    console.log(`🎮 Game selected: ${gameType} in ${roomCode}`);
   });
 
+  // Player: Ready
   socket.on('player_ready', ({ roomCode, ready }) => {
     const room = rooms.get(roomCode);
     const playerData = players.get(socket.id);
     if (!room || !playerData) return;
     
-    if (room.players[socket.id]) {
-      room.players[socket.id].ready = ready;
-    }
-    
+    if (room.players[socket.id]) room.players[socket.id].ready = ready;
     socket.to(roomCode).emit('player_ready_status', { player: playerData.role, ready });
-    
-    const allReady = Object.values(room.players).every(p => p.ready);
-    if (allReady && Object.keys(room.players).length === 2) {
-      console.log(`✅ Both players ready in ${roomCode}`);
-    }
   });
 
+  // Player: Start game
   socket.on('start_game', async ({ roomCode, gameType }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
     
     const tasks = await getTasksForGame(gameType);
-    
     room.tasks = tasks;
     room.taskIndex = 0;
     room.scores = { player1: 0, player2: 0 };
-    room.history = [];
-    room.words = [];
     room.currentTurn = 'player1';
-    room.gameState = 'playing';
+    room.timer = 60;
+    room.timerPaused = true;
     
-    const gamesWithTimer = ['palabras', 'batalla'];
-    const hasTimer = gamesWithTimer.includes(gameType);
-    const timerDuration = gameType === 'palabras' ? 30 : gameType === 'batalla' ? 60 : 0;
-    
-    io.to(roomCode).emit('game_started', {
-      gameType,
-      tasks,
-      startingPlayer: 'player1',
-      hasTimer,
-      timerDuration
-    });
-    
-    if (hasTimer) {
-      room.timerValue = timerDuration;
-      room.timer = setInterval(() => {
-        room.timerValue--;
-        io.to(roomCode).emit('timer_update', room.timerValue);
-        
-        if (room.timerValue <= 0) {
-          clearInterval(room.timer);
-          room.timer = null;
-          io.to(roomCode).emit('timer_finished');
-          io.to(roomCode).emit('game_finished');
-        }
-      }, 1000);
-    }
-    
-    console.log(`🚀 Game started: ${gameType} in ${roomCode}`);
+    io.to(roomCode).emit('game_started', { gameType, tasks, startingPlayer: 'player1' });
+    startTimer(roomCode);
+    console.log(`🚀 Game: ${gameType} in ${roomCode}`);
   });
 
-  socket.on('update_score', ({ roomCode, player, points }) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    
-    room.scores[player] = (room.scores[player] || 0) + points;
-    io.to(roomCode).emit('scores_updated', room.scores);
-  });
-
-  socket.on('next_task', ({ roomCode, switchTurn }) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    
-    room.taskIndex++;
-    
-    if (switchTurn) {
-      room.currentTurn = room.currentTurn === 'player1' ? 'player2' : 'player1';
-    }
-    
-    if (room.taskIndex >= room.tasks.length) {
-      io.to(roomCode).emit('game_finished');
-    } else {
-      io.to(roomCode).emit('next_task', {
-        task: room.tasks[room.taskIndex],
-        index: room.taskIndex,
-        switchTurn
-      });
-      
-      if (switchTurn) {
-        io.to(roomCode).emit('turn_changed', { turn: room.currentTurn });
-      }
-    }
-  });
-
-  socket.on('submit_answer', ({ roomCode, action, value, player }) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    
-    const entry = { timestamp: Date.now(), data: { action, value, player } };
-    room.history.push(entry);
-    io.to(roomCode).emit('answer_submitted', entry);
-  });
-
-  socket.on('add_word', ({ roomCode, word, player }) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    
-    room.words.push({ word, player });
-    io.to(roomCode).emit('word_added', { word, player });
-  });
-
-  socket.on('finish_game', ({ roomCode }) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    
-    if (room.timer) {
-      clearInterval(room.timer);
-      room.timer = null;
-    }
-    
-    io.to(roomCode).emit('game_finished');
-  });
-
+  // Player: Return to games
   socket.on('return_to_games', ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
-    
-    if (room.timer) {
-      clearInterval(room.timer);
-      room.timer = null;
-    }
-    
+    stopTimer(roomCode);
     room.currentGame = null;
-    room.gameState = null;
     room.tasks = [];
     room.taskIndex = 0;
-    room.history = [];
-    room.words = [];
     Object.values(room.players).forEach(p => p.ready = false);
-    
     io.to(roomCode).emit('return_to_games');
   });
 
+  // ============ ADMIN ============
   socket.on('admin_login', (password) => {
     const success = password === (process.env.ADMIN_PASSWORD || 'ksesha2025');
     socket.emit('admin_authenticated', { success });
-    if (success) console.log('👨‍🏫 Admin logged in');
+    if (success) console.log('👨‍🏫 Admin in');
   });
 
-  socket.on('get_active_games', () => {
-    const activeGames = [];
+  socket.on('admin_get_games', () => {
+    const games = [];
     rooms.forEach((room, code) => {
-      activeGames.push({
-        id: code,
+      games.push({
         roomCode: code,
         currentGame: room.currentGame,
         playerCount: Object.keys(room.players).length,
         scores: room.scores,
-        gameState: room.gameState
+        timer: room.timer,
+        taskIndex: room.taskIndex,
+        totalTasks: room.tasks.length
       });
     });
-    socket.emit('active_games_list', activeGames);
+    socket.emit('admin_games_list', games);
   });
 
-  socket.on('get_tasks', async (collection) => {
-    try {
-      const snapshot = await db.collection(collection).get();
-      const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      socket.emit('tasks_list', tasks);
-    } catch (error) {
-      console.error('Error getting tasks:', error);
-      socket.emit('tasks_list', []);
+  socket.on('admin_watch_game', (roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    socket.emit('admin_game_data', {
+      roomCode,
+      currentGame: room.currentGame,
+      scores: room.scores,
+      timer: room.timer,
+      timerPaused: room.timerPaused,
+      currentTask: room.tasks[room.taskIndex] || null,
+      taskIndex: room.taskIndex,
+      totalTasks: room.tasks.length,
+      currentTurn: room.currentTurn
+    });
+  });
+
+  socket.on('admin_add_score', ({ roomCode, player, points }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.scores[player] = Math.max(0, (room.scores[player] || 0) + points);
+    io.to(roomCode).emit('scores_updated', room.scores);
+  });
+
+  socket.on('admin_next_task', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.taskIndex++;
+    room.currentTurn = room.currentTurn === 'player1' ? 'player2' : 'player1';
+    room.timer = 60;
+    if (room.taskIndex >= room.tasks.length) {
+      io.to(roomCode).emit('game_finished', { finalScores: room.scores });
+      stopTimer(roomCode);
+    } else {
+      io.to(roomCode).emit('next_task', { task: room.tasks[room.taskIndex], index: room.taskIndex, newTurn: room.currentTurn });
+      io.to(roomCode).emit('timer_update', room.timer);
     }
   });
 
-  socket.on('add_task', async (collection, taskData) => {
-    try {
-      const docRef = await db.collection(collection).add({
-        ...taskData,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      socket.emit('task_added', { id: docRef.id, ...taskData });
-      console.log(`📝 Task added to ${collection}`);
-    } catch (error) {
-      console.error('Error adding task:', error);
-    }
+  socket.on('admin_switch_turn', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.currentTurn = room.currentTurn === 'player1' ? 'player2' : 'player1';
+    io.to(roomCode).emit('turn_changed', { turn: room.currentTurn });
   });
 
-  socket.on('delete_task', async (collection, taskId) => {
-    try {
-      await db.collection(collection).doc(taskId).delete();
-      socket.emit('task_deleted', { id: taskId });
-      console.log(`🗑️ Task deleted from ${collection}`);
-    } catch (error) {
-      console.error('Error deleting task:', error);
-    }
+  socket.on('admin_reset_timer', ({ roomCode, seconds }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.timer = seconds;
+    room.timerPaused = false;
+    io.to(roomCode).emit('timer_update', room.timer);
   });
 
+  socket.on('admin_pause_timer', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.timerPaused = !room.timerPaused;
+  });
+
+  socket.on('admin_finish_game', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    stopTimer(roomCode);
+    io.to(roomCode).emit('game_finished', { finalScores: room.scores });
+  });
+
+  // Disconnect
   socket.on('disconnect', () => {
     const playerData = players.get(socket.id);
     if (playerData) {
       const room = rooms.get(playerData.roomCode);
       if (room) {
         delete room.players[socket.id];
-        
         if (Object.keys(room.players).length === 0) {
-          if (room.timer) clearInterval(room.timer);
+          stopTimer(playerData.roomCode);
           rooms.delete(playerData.roomCode);
-          console.log(`🏠 Room deleted: ${playerData.roomCode}`);
         } else {
           io.to(playerData.roomCode).emit('partner_disconnected');
         }
@@ -505,8 +472,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ============ START SERVER ============
 const PORT = process.env.PORT || 3000;
 initializeTasks().then(() => {
-  server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  server.listen(PORT, () => console.log(`🚀 Server: ${PORT}`));
 });
