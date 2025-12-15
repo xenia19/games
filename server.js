@@ -507,8 +507,40 @@ io.on('connection', (socket) => {
   });
 
   socket.on('get_active_games', () => { const activeGames = []; rooms.forEach((room, code) => { activeGames.push({ id: code, roomCode: code, currentGame: room.currentGame, playerCount: Object.keys(room.players).length, scores: room.scores, gameState: room.gameState }); }); socket.emit('active_games_list', activeGames); });
+socket.on('get_tasks', async (collection) => {
+  try {
+    const snapshot = await db.collection(collection).get();
+    const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    socket.emit('tasks_list', tasks);
+  } catch (error) {
+    console.error('Error getting tasks:', error);
+    socket.emit('tasks_list', []);
+  }
+});
 
-  socket.on('get_tasks', async (collection) => { try { const snapshot = await db.collection(collection).get(); const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); socket.emit('tasks_list', tasks); } catch (error) { console.error('Error getting tasks:', error); socket.emit('tasks_list', []); } }); socket.on('add_task', async (collection, taskData) => { try { const docRef = await db.collection(collection).add({ ...taskData, createdAt: admin.firestore.FieldValue.serverTimestamp() }); socket.emit('task_added', { id: docRef.id, ...taskData }); console.log(📝 Task added to ${collection}); } catch (error) { console.error('Error adding task:', error); } }); socket.on('delete_task', async (collection, taskId) => { try { await db.collection(collection).doc(taskId).delete(); socket.emit('task_deleted', { id: taskId }); console.log(🗑️ Task deleted from ${collection}); } catch (error) { console.error('Error deleting task:', error); } });
+socket.on('add_task', async (collection, taskData) => {
+  try {
+    const docRef = await db.collection(collection).add({
+      ...taskData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    socket.emit('task_added', { id: docRef.id, ...taskData });
+    console.log(`📝 Task added to ${collection}`);
+  } catch (error) {
+    console.error('Error adding task:', error);
+  }
+});
+
+socket.on('delete_task', async (collection, taskId) => {
+  try {
+    await db.collection(collection).doc(taskId).delete();
+    socket.emit('task_deleted', { id: taskId });
+    console.log(`🗑️ Task deleted from ${collection}`);
+  } catch (error) {
+    console.error('Error deleting task:', error);
+  }
+});
 
   // Disconnect
   socket.on('disconnect', () => {
