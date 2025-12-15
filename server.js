@@ -1,8 +1,12 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const admin = require('firebase-admin');
-const path = require('path');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import admin from 'firebase-admin';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
@@ -27,8 +31,8 @@ app.use(express.static('public'));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ============ DATA STORAGE ============
-const rooms = new Map();      // roomCode -> room data
-const players = new Map();    // socket.id -> { roomCode, role }
+const rooms = new Map();
+const players = new Map();
 
 // ============ DEFAULT TASKS ============
 const DEFAULT_TASKS = {
@@ -205,12 +209,11 @@ const getTasksForGame = async (gameType) => {
   try {
     const snapshot = await db.collection(collection).get();
     const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Shuffle tasks
     for (let i = tasks.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
     }
-    return tasks.slice(0, 10); // Return max 10 tasks
+    return tasks.slice(0, 10);
   } catch (error) {
     console.error('Error getting tasks:', error);
     return DEFAULT_TASKS[collection]?.slice(0, 10) || [];
@@ -221,7 +224,6 @@ const getTasksForGame = async (gameType) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Connected: ${socket.id}`);
 
-  // ---- CREATE ROOM ----
   socket.on('create_room', () => {
     let roomCode;
     do { roomCode = generateRoomCode(); } while (rooms.has(roomCode));
@@ -249,7 +251,6 @@ io.on('connection', (socket) => {
     console.log(`🏠 Room created: ${roomCode}`);
   });
 
-  // ---- JOIN ROOM ----
   socket.on('join_room', (code) => {
     const roomCode = code.toUpperCase();
     const room = rooms.get(roomCode);
@@ -273,22 +274,18 @@ io.on('connection', (socket) => {
     console.log(`👥 Player 2 joined: ${roomCode}`);
   });
 
-  // ---- SELECT GAME ----
   socket.on('select_game', ({ roomCode, gameType }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
     
     room.currentGame = gameType;
     room.gameState = 'waiting';
-    
-    // Reset ready states
     Object.values(room.players).forEach(p => p.ready = false);
     
     io.to(roomCode).emit('game_selected', { gameType });
     console.log(`🎮 Game selected: ${gameType} in ${roomCode}`);
   });
 
-  // ---- PLAYER READY ----
   socket.on('player_ready', ({ roomCode, ready }) => {
     const room = rooms.get(roomCode);
     const playerData = players.get(socket.id);
@@ -298,17 +295,14 @@ io.on('connection', (socket) => {
       room.players[socket.id].ready = ready;
     }
     
-    // Notify other player
     socket.to(roomCode).emit('player_ready_status', { player: playerData.role, ready });
     
-    // Check if both ready
     const allReady = Object.values(room.players).every(p => p.ready);
     if (allReady && Object.keys(room.players).length === 2) {
       console.log(`✅ Both players ready in ${roomCode}`);
     }
   });
 
-  // ---- START GAME ----
   socket.on('start_game', async ({ roomCode, gameType }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -323,7 +317,6 @@ io.on('connection', (socket) => {
     room.currentTurn = 'player1';
     room.gameState = 'playing';
     
-    // Timer only for specific games
     const gamesWithTimer = ['palabras', 'batalla'];
     const hasTimer = gamesWithTimer.includes(gameType);
     const timerDuration = gameType === 'palabras' ? 30 : gameType === 'batalla' ? 60 : 0;
@@ -336,7 +329,6 @@ io.on('connection', (socket) => {
       timerDuration
     });
     
-    // Start timer if needed
     if (hasTimer) {
       room.timerValue = timerDuration;
       room.timer = setInterval(() => {
@@ -355,7 +347,6 @@ io.on('connection', (socket) => {
     console.log(`🚀 Game started: ${gameType} in ${roomCode}`);
   });
 
-  // ---- UPDATE SCORE ----
   socket.on('update_score', ({ roomCode, player, points }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -364,7 +355,6 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('scores_updated', room.scores);
   });
 
-  // ---- NEXT TASK ----
   socket.on('next_task', ({ roomCode, switchTurn }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -390,7 +380,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ---- SUBMIT ANSWER ----
   socket.on('submit_answer', ({ roomCode, action, value, player }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -400,7 +389,6 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('answer_submitted', entry);
   });
 
-  // ---- ADD WORD ----
   socket.on('add_word', ({ roomCode, word, player }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -409,7 +397,6 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('word_added', { word, player });
   });
 
-  // ---- FINISH GAME ----
   socket.on('finish_game', ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -422,7 +409,6 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('game_finished');
   });
 
-  // ---- RETURN TO GAMES ----
   socket.on('return_to_games', ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
@@ -443,14 +429,12 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('return_to_games');
   });
 
-  // ---- ADMIN LOGIN ----
   socket.on('admin_login', (password) => {
     const success = password === (process.env.ADMIN_PASSWORD || 'ksesha2025');
     socket.emit('admin_authenticated', { success });
     if (success) console.log('👨‍🏫 Admin logged in');
   });
 
-  // ---- GET ACTIVE GAMES ----
   socket.on('get_active_games', () => {
     const activeGames = [];
     rooms.forEach((room, code) => {
@@ -466,7 +450,6 @@ io.on('connection', (socket) => {
     socket.emit('active_games_list', activeGames);
   });
 
-  // ---- GET TASKS ----
   socket.on('get_tasks', async (collection) => {
     try {
       const snapshot = await db.collection(collection).get();
@@ -478,7 +461,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ---- ADD TASK ----
   socket.on('add_task', async (collection, taskData) => {
     try {
       const docRef = await db.collection(collection).add({
@@ -492,7 +474,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ---- DELETE TASK ----
   socket.on('delete_task', async (collection, taskId) => {
     try {
       await db.collection(collection).doc(taskId).delete();
@@ -503,7 +484,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ---- DISCONNECT ----
   socket.on('disconnect', () => {
     const playerData = players.get(socket.id);
     if (playerData) {
