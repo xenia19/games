@@ -105,14 +105,68 @@ const DEFAULT_TASKS = {
     { situacion: '🏋️ Gimnasio', fraseA: 'Voy al gimnasio tres veces a la semana.', clave: 'AHORA', claveExplicacion: 'сейчас - presente' },
     { situacion: '📱 Teléfono', fraseA: 'Mi teléfono no funciona bien.', clave: 'NECESITO', claveExplicacion: 'нужно чтобы - subjuntivo' }
   ],
-  roleplay: [
-    { escena: 'Café', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide algo de beber y comer', vocabulario: ['poner', 'cuenta', 'propina', 'terraza', 'carta'] },
-    { escena: 'Médico', rol1: 'Paciente', rol2: 'Médico', instrucciones: 'Explica tus síntomas', vocabulario: ['dolor', 'fiebre', 'receta', 'análisis', 'cita'] },
-    { escena: 'Piso (alquiler)', rol1: 'Inquilino', rol2: 'Propietario', instrucciones: 'Pregunta sobre el piso', vocabulario: ['fianza', 'gastos', 'amueblado', 'contrato', 'habitación'] },
-    { escena: 'Tienda de ropa', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Busca una camiseta', vocabulario: ['talla', 'probador', 'rebaja', 'quedar', 'color'] },
-    { escena: 'Transporte', rol1: 'Turista', rol2: 'Pasajero', instrucciones: 'Pide indicaciones para Sagrada Familia', vocabulario: ['línea', 'transbordo', 'parada', 'billete', 'dirección'] },
-    { escena: 'Trámite oficial', rol1: 'Ciudadano', rol2: 'Funcionario', instrucciones: 'Pide información sobre un documento', vocabulario: ['formulario', 'cita previa', 'fotocopia', 'plazo', 'requisito'] }
-  ],
+roleplay: [
+  {
+    escena: 'Café',
+    rol1: 'Cliente',
+    rol2: 'Camarero',
+    instrucciones: 
+      'Cliente: el pedido no es lo que esperabas. Quejate.\n' +
+      'Camarero: intenta arreglar la situación sin problemas.',
+    vocabulario: ['poner', 'cuenta', 'propina', 'terraza', 'carta']
+  },
+
+  {
+    escena: 'Médico',
+    rol1: 'Paciente',
+    rol2: 'Médico',
+    instrucciones:
+      'Paciente: te sientes mal desde hace días y estás preocupado.\n' +
+      'Médico: haz preguntas y decide si necesita análisis o receta.',
+    vocabulario: ['dolor', 'fiebre', 'receta', 'análisis', 'cita']
+  },
+
+  {
+    escena: 'Piso (alquiler)',
+    rol1: 'Inquilino',
+    rol2: 'Propietario',
+    instrucciones:
+      'Inquilino: el piso tiene un problema y quieres una solución.\n' +
+      'Propietario: minimiza el problema y evita gastar dinero.',
+    vocabulario: ['fianza', 'gastos', 'amueblado', 'contrato', 'habitación']
+  },
+
+  {
+    escena: 'Cita absurda',
+    rol1: 'Persona puntual',
+    rol2: 'Persona impuntual',
+    instrucciones:
+      'Puntual: esperas desde hace 30 minutos y estás molesto.\n' +
+      'Impuntual: llegas tarde y actúas como si nada pasara.',
+    vocabulario: ['esperar', 'llegar tarde', 'mensaje', 'perdón', 'tiempo']
+  },
+
+  {
+    escena: 'Trabajo',
+    rol1: 'Empleado',
+    rol2: 'Jefe',
+    instrucciones:
+      'Empleado: quieres irte antes hoy.\n' +
+      'Jefe: necesitas que se quede más tiempo.',
+    vocabulario: ['horario', 'reunión', 'urgente', 'permiso', 'quedarse']
+  },
+
+  {
+    escena: 'Trámite oficial',
+    rol1: 'Ciudadano',
+    rol2: 'Funcionario',
+    instrucciones:
+      'Ciudadano: no entiendes el proceso y estás frustrado.\n' +
+      'Funcionario: explica las normas con lenguaje formal.',
+    vocabulario: ['formulario', 'cita previa', 'fotocopia', 'plazo', 'requisito']
+  }
+],
+
   preguntas: [
     // A1 (20)
     { pregunta: '¿Dónde vives ahora?', nivel: 'A1' },
@@ -451,6 +505,10 @@ io.on('connection', (socket) => {
     stopTimer(roomCode);
     io.to(roomCode).emit('game_finished', { finalScores: room.scores });
   });
+
+  socket.on('get_active_games', () => { const activeGames = []; rooms.forEach((room, code) => { activeGames.push({ id: code, roomCode: code, currentGame: room.currentGame, playerCount: Object.keys(room.players).length, scores: room.scores, gameState: room.gameState }); }); socket.emit('active_games_list', activeGames); });
+
+  socket.on('get_tasks', async (collection) => { try { const snapshot = await db.collection(collection).get(); const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); socket.emit('tasks_list', tasks); } catch (error) { console.error('Error getting tasks:', error); socket.emit('tasks_list', []); } }); socket.on('add_task', async (collection, taskData) => { try { const docRef = await db.collection(collection).add({ ...taskData, createdAt: admin.firestore.FieldValue.serverTimestamp() }); socket.emit('task_added', { id: docRef.id, ...taskData }); console.log(📝 Task added to ${collection}); } catch (error) { console.error('Error adding task:', error); } }); socket.on('delete_task', async (collection, taskId) => { try { await db.collection(collection).doc(taskId).delete(); socket.emit('task_deleted', { id: taskId }); console.log(🗑️ Task deleted from ${collection}); } catch (error) { console.error('Error deleting task:', error); } });
 
   // Disconnect
   socket.on('disconnect', () => {
