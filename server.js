@@ -1,172 +1,132 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import admin from 'firebase-admin';
-import { v4 as uuidv4 } from 'uuid';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const admin = require('firebase-admin');
+const path = require('path');
 
-dotenv.config();
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// ============ FIREBASE INIT ============
-let serviceAccount;
-
-try {
-  if (process.env.FIREBASE_CONFIG) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-  } else {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-    if (!privateKey) {
-      throw new Error('FIREBASE_PRIVATE_KEY не найден в переменных окружения');
-    }
-
-    serviceAccount = {
-      type: "service_account",
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: privateKey.includes('\\n') ? privateKey.replace(/\\n/g, '\n') : privateKey,
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: process.env.FIREBASE_AUTH_URI || "https://accounts.google.com/o/oauth2/auth",
-      token_uri: process.env.FIREBASE_TOKEN_URI || "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-      universe_domain: "googleapis.com"
-    };
-  }
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-  console.log('✅ Firebase инициализирован успешно');
-} catch (e) {
-  console.error('🔴 Firebase init error:', e.message);
-  process.exit(1);
-}
-
-const db = admin.firestore();
 const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-app.use(cors());
-app.use(express.json());
+// Firebase setup
+const serviceAccount = {
+  type: "service_account",
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  client_id: process.env.FIREBASE_CLIENT_ID,
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+};
 
-// ============ GAME DATA STORAGE ============
-const games = new Map();
-const players = new Map();
-const gameTimers = new Map();
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
 
-// ============ DEFAULT TASKS - 15+ PER CATEGORY ============
+app.use(express.static('public'));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// ============ DATA STORAGE ============
+const rooms = new Map();      // roomCode -> room data
+const players = new Map();    // socket.id -> { roomCode, role }
+
+// ============ DEFAULT TASKS ============
 const DEFAULT_TASKS = {
   tabu: [
-    { palabra: 'supermercado', prohibidas: ['tienda', 'comprar', 'Mercadona'], nivel: 'A2' },
-    { palabra: 'metro', prohibidas: ['transporte', 'tren', 'subterráneo'], nivel: 'A2' },
+    { palabra: 'supermercado', prohibidas: ['comprar', 'comida', 'tienda'], nivel: 'A2' },
+    { palabra: 'metro', prohibidas: ['tren', 'transporte', 'subterráneo'], nivel: 'A2' },
     { palabra: 'apartamento', prohibidas: ['casa', 'vivir', 'piso'], nivel: 'A2' },
-    { palabra: 'paella', prohibidas: ['arroz', 'comida', 'Valencia'], nivel: 'A2' },
-    { palabra: 'playa', prohibidas: ['mar', 'arena', 'Barceloneta'], nivel: 'A2' },
-    { palabra: 'farmacia', prohibidas: ['medicinas', 'médico', 'pastillas'], nivel: 'A2' },
+    { palabra: 'paella', prohibidas: ['arroz', 'España', 'comida'], nivel: 'A2' },
+    { palabra: 'playa', prohibidas: ['mar', 'arena', 'nadar'], nivel: 'A2' },
+    { palabra: 'farmacia', prohibidas: ['medicina', 'enfermo', 'comprar'], nivel: 'A2' },
     { palabra: 'biblioteca', prohibidas: ['libros', 'leer', 'estudiar'], nivel: 'A2' },
-    { palabra: 'gimnasio', prohibidas: ['deporte', 'ejercicio', 'músculos'], nivel: 'A2' },
-    { palabra: 'restaurante', prohibidas: ['comida', 'comer', 'camarero'], nivel: 'A2' },
-    { palabra: 'peluquería', prohibidas: ['pelo', 'cortar', 'cabello'], nivel: 'A2' },
-    { palabra: 'aeropuerto', prohibidas: ['avión', 'volar', 'El Prat'], nivel: 'A2' },
-    { palabra: 'hospital', prohibidas: ['médico', 'enfermo', 'salud'], nivel: 'A2' },
-    { palabra: 'panadería', prohibidas: ['pan', 'croissant', 'horno'], nivel: 'A2' },
-    { palabra: 'zapatería', prohibidas: ['zapatos', 'calzado', 'pies'], nivel: 'A2' },
+    { palabra: 'gimnasio', prohibidas: ['ejercicio', 'deporte', 'músculos'], nivel: 'A2' },
+    { palabra: 'restaurante', prohibidas: ['comer', 'comida', 'camarero'], nivel: 'A2' },
+    { palabra: 'peluquería', prohibidas: ['pelo', 'cortar', 'tijeras'], nivel: 'A2' },
+    { palabra: 'aeropuerto', prohibidas: ['avión', 'volar', 'viajar'], nivel: 'A2' },
+    { palabra: 'hospital', prohibidas: ['médico', 'enfermo', 'enfermera'], nivel: 'A2' },
+    { palabra: 'panadería', prohibidas: ['pan', 'comprar', 'horno'], nivel: 'A2' },
+    { palabra: 'zapatería', prohibidas: ['zapatos', 'comprar', 'pies'], nivel: 'A2' },
     { palabra: 'lavadora', prohibidas: ['ropa', 'lavar', 'agua'], nivel: 'A2' },
     { palabra: 'nevera', prohibidas: ['frío', 'comida', 'cocina'], nivel: 'A2' },
-    { palabra: 'vecino', prohibidas: ['persona', 'edificio', 'cerca'], nivel: 'A2' },
-    { palabra: 'tarjeta', prohibidas: ['banco', 'dinero', 'pagar'], nivel: 'A2' },
-    { palabra: 'cumpleaños', prohibidas: ['fiesta', 'regalo', 'años'], nivel: 'A2' },
-    { palabra: 'vacaciones', prohibidas: ['descanso', 'viaje', 'verano'], nivel: 'A2' }
+    { palabra: 'vecino', prohibidas: ['vivir', 'cerca', 'edificio'], nivel: 'A2' },
+    { palabra: 'tarjeta', prohibidas: ['pagar', 'banco', 'dinero'], nivel: 'A2' },
+    { palabra: 'cumpleaños', prohibidas: ['fiesta', 'años', 'regalo'], nivel: 'A2' },
+    { palabra: 'vacaciones', prohibidas: ['descansar', 'viajar', 'verano'], nivel: 'A2' }
   ],
-
   conjugacion: [
-    { verbo: 'tener', pregunta: '¿_____ mucho trabajo esta semana?', respuesta: 'Sí, tengo mucho trabajo / No, no tengo mucho trabajo', nivel: 'A2' },
-    { verbo: 'hacer', pregunta: '¿_____ la compra en el supermercado o en el mercado?', respuesta: 'Hago la compra en...', nivel: 'A2' },
-    { verbo: 'poner', pregunta: '¿_____ la lavadora todos los días?', respuesta: 'Sí, pongo / No, no pongo la lavadora...', nivel: 'A2' },
-    { verbo: 'salir', pregunta: '¿_____ mucho por la noche?', respuesta: 'Sí, salgo / No, no salgo mucho...', nivel: 'A2' },
-    { verbo: 'conocer', pregunta: '¿_____ bien el centro de Barcelona?', respuesta: 'Sí, conozco / No, no conozco bien...', nivel: 'A2' },
-    { verbo: 'saber', pregunta: '¿_____ cocinar comida española?', respuesta: 'Sí, sé / No, no sé cocinar...', nivel: 'A2' },
-    { verbo: 'poder', pregunta: '¿_____ hablar catalán?', respuesta: 'Sí, puedo / No, no puedo hablar...', nivel: 'A2' },
-    { verbo: 'querer', pregunta: '¿_____ viajar a otras ciudades de España?', respuesta: 'Sí, quiero / No, no quiero viajar...', nivel: 'A2' },
-    { verbo: 'preferir', pregunta: '¿_____ el metro o el autobús?', respuesta: 'Prefiero el metro / el autobús porque...', nivel: 'A2' },
-    { verbo: 'levantarse', pregunta: '¿A qué hora _____ los lunes?', respuesta: 'Me levanto a las...', nivel: 'A2' },
-    { verbo: 'acostarse', pregunta: '¿A qué hora _____ normalmente?', respuesta: 'Me acuesto a las...', nivel: 'A2' },
-    { verbo: 'ducharse', pregunta: '¿_____ por la mañana o por la noche?', respuesta: 'Me ducho por la...', nivel: 'A2' },
-    { verbo: 'vestirse', pregunta: '¿Cuánto tiempo _____ por la mañana?', respuesta: 'Me visto en... minutos', nivel: 'A2' },
-    { verbo: 'ir', pregunta: '¿Cómo _____ al trabajo o a la escuela?', respuesta: 'Voy en metro / a pie / en bus...', nivel: 'A2' },
-    { verbo: 'venir', pregunta: '¿De dónde _____ originalmente?', respuesta: 'Vengo de Rusia / de...', nivel: 'A2' },
-    { verbo: 'traer', pregunta: '¿Qué _____ normalmente para comer?', respuesta: 'Traigo... / No traigo nada', nivel: 'A2' }
+    { verbo: 'tener', pregunta: '¿Cuántos años _____ (tú)?', respuesta: 'tienes', nivel: 'A2' },
+    { verbo: 'hacer', pregunta: '¿Qué _____ (tú) los fines de semana?', respuesta: 'haces', nivel: 'A2' },
+    { verbo: 'poner', pregunta: '¿Dónde _____ (tú) las llaves?', respuesta: 'pones', nivel: 'A2' },
+    { verbo: 'salir', pregunta: '¿A qué hora _____ (tú) de casa?', respuesta: 'sales', nivel: 'A2' },
+    { verbo: 'conocer', pregunta: '¿_____ (tú) Barcelona bien?', respuesta: 'Conoces', nivel: 'A2' },
+    { verbo: 'saber', pregunta: '¿_____ (tú) cocinar paella?', respuesta: 'Sabes', nivel: 'A2' },
+    { verbo: 'poder', pregunta: '¿_____ (tú) ayudarme?', respuesta: 'Puedes', nivel: 'A2' },
+    { verbo: 'querer', pregunta: '¿_____ (tú) ir al cine?', respuesta: 'Quieres', nivel: 'A2' },
+    { verbo: 'preferir', pregunta: '¿Qué _____ (tú), café o té?', respuesta: 'prefieres', nivel: 'A2' },
+    { verbo: 'levantarse', pregunta: '¿A qué hora _____ (tú)?', respuesta: 'te levantas', nivel: 'A2' },
+    { verbo: 'acostarse', pregunta: '¿A qué hora _____ (tú)?', respuesta: 'te acuestas', nivel: 'A2' },
+    { verbo: 'ducharse', pregunta: '¿Por la mañana o por la noche _____ (tú)?', respuesta: 'te duchas', nivel: 'A2' },
+    { verbo: 'vestirse', pregunta: '¿Cómo _____ (tú) para ir al trabajo?', respuesta: 'te vistes', nivel: 'A2' },
+    { verbo: 'ir', pregunta: '¿Cómo _____ (tú) al trabajo?', respuesta: 'vas', nivel: 'A2' },
+    { verbo: 'venir', pregunta: '¿De dónde _____ (tú)?', respuesta: 'vienes', nivel: 'A2' },
+    { verbo: 'traer', pregunta: '¿Qué _____ (tú) a la fiesta?', respuesta: 'traes', nivel: 'A2' }
   ],
-
   palabrasPorTema: [
-    { tema: 'Comida española', tiempo: 30, nivel: 'A2' },
-    { tema: 'Partes del cuerpo', tiempo: 30, nivel: 'A2' },
-    { tema: 'Ropa de verano', tiempo: 30, nivel: 'A2' },
-    { tema: 'Transporte en Barcelona', tiempo: 30, nivel: 'A2' },
-    { tema: 'Muebles de casa', tiempo: 30, nivel: 'A2' },
-    { tema: 'Profesiones', tiempo: 30, nivel: 'A2' },
-    { tema: 'Animales', tiempo: 30, nivel: 'A2' },
-    { tema: 'Frutas y verduras', tiempo: 30, nivel: 'A2' },
-    { tema: 'Colores', tiempo: 30, nivel: 'A2' },
-    { tema: 'Días y meses', tiempo: 30, nivel: 'A2' },
-    { tema: 'Lugares de Barcelona', tiempo: 30, nivel: 'A2' },
-    { tema: 'Bebidas', tiempo: 30, nivel: 'A2' },
-    { tema: 'Deportes', tiempo: 30, nivel: 'A2' },
-    { tema: 'Electrodomésticos', tiempo: 30, nivel: 'A2' },
-    { tema: 'Tiempo atmosférico', tiempo: 30, nivel: 'A2' }
+    { tema: 'Comida española', nivel: 'A2' },
+    { tema: 'Partes del cuerpo', nivel: 'A2' },
+    { tema: 'Ropa de verano', nivel: 'A2' },
+    { tema: 'Transporte en Barcelona', nivel: 'A2' },
+    { tema: 'Muebles de casa', nivel: 'A2' },
+    { tema: 'Profesiones', nivel: 'A2' },
+    { tema: 'Animales', nivel: 'A2' },
+    { tema: 'Frutas y verduras', nivel: 'A2' },
+    { tema: 'Colores', nivel: 'A2' },
+    { tema: 'Días y meses', nivel: 'A2' },
+    { tema: 'Lugares de Barcelona', nivel: 'A2' },
+    { tema: 'Bebidas', nivel: 'A2' },
+    { tema: 'Deportes', nivel: 'A2' },
+    { tema: 'Electrodomésticos', nivel: 'A2' },
+    { tema: 'Tiempo atmosférico', nivel: 'A2' }
   ],
-
   dialogos: [
-    { tiempo: 'presente', situacion: 'Habla sobre tu rutina diaria en Barcelona. ¿Qué haces normalmente?', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta qué hiciste el fin de semana pasado.', nivel: 'A2' },
-    { tiempo: 'imperfecto', situacion: 'Describe cómo era tu vida en Rusia cuando eras pequeño/a.', nivel: 'A2' },
-    { tiempo: 'futuro', situacion: 'Explica qué harás en las próximas vacaciones.', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Tu amigo quiere aprender español. Dale consejos: "Te recomiendo que..."', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Tu compañero de piso hace mucho ruido. Pídele: "Quiero que..."', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Habla de tus deseos: "Espero que..." / "Ojalá..."', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta tu primer día en Barcelona. ¿Qué pasó?', nivel: 'A2' },
-    { tiempo: 'imperfecto', situacion: 'Cuando vivías en Rusia, ¿qué comías normalmente?', nivel: 'A2' },
-    { tiempo: 'presente', situacion: 'Describe tu barrio en Barcelona. ¿Qué hay? ¿Qué puedes hacer?', nivel: 'A2' },
-    { tiempo: 'futuro', situacion: '¿Qué planes tienes para mejorar tu español?', nivel: 'A2' },
-    { tiempo: 'pasado', situacion: 'Cuenta la última vez que fuiste a un restaurante.', nivel: 'A2' },
-    { tiempo: 'subjuntivo', situacion: 'Tu amigo está enfermo. Desea: "Espero que te mejores pronto..."', nivel: 'A2' },
-    { tiempo: 'imperfecto', situacion: 'Cuando tenías 10 años, ¿qué te gustaba hacer?', nivel: 'A2' },
-    { tiempo: 'presente', situacion: '¿Qué diferencias hay entre Barcelona y tu ciudad de Rusia?', nivel: 'A2' }
+    { tiempo: 'presente', situacion: 'Estás en un café con tu amigo. Habla de tu rutina diaria.', nivel: 'A2' },
+    { tiempo: 'pasado', situacion: 'Cuenta qué hiciste ayer después del trabajo.', nivel: 'A2' },
+    { tiempo: 'imperfecto', situacion: 'Describe cómo era tu vida en tu país antes de venir a España.', nivel: 'A2' },
+    { tiempo: 'futuro', situacion: 'Habla de tus planes para las próximas vacaciones.', nivel: 'A2' },
+    { tiempo: 'presente', situacion: 'Describe tu barrio y qué hay cerca de tu casa.', nivel: 'A2' },
+    { tiempo: 'pasado', situacion: 'Cuenta una experiencia divertida que tuviste en Barcelona.', nivel: 'A2' },
+    { tiempo: 'imperfecto', situacion: 'Describe cómo eran tus veranos cuando eras niño/a.', nivel: 'A2' },
+    { tiempo: 'futuro', situacion: 'Habla de lo que harás este fin de semana.', nivel: 'A2' },
+    { tiempo: 'presente', situacion: 'Describe tu trabajo o estudios actuales.', nivel: 'A2' },
+    { tiempo: 'pasado', situacion: 'Cuenta tu último viaje.', nivel: 'A2' },
+    { tiempo: 'subjuntivo', situacion: 'Da consejos a un amigo que quiere aprender español.', nivel: 'A2' },
+    { tiempo: 'subjuntivo', situacion: 'Expresa deseos para el año nuevo.', nivel: 'A2' },
+    { tiempo: 'presente', situacion: 'Habla sobre tu comida favorita y cómo se prepara.', nivel: 'A2' },
+    { tiempo: 'pasado', situacion: 'Cuenta cómo fue tu primera semana en Barcelona.', nivel: 'A2' },
+    { tiempo: 'futuro', situacion: 'Describe cómo será tu vida dentro de 5 años.', nivel: 'A2' }
   ],
-
   roleplay: [
-    { escena: 'En el bar', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide un café con leche y un croissant. Pregunta el precio.', vocabulario: ['poner', 'la cuenta', 'cuánto cuesta', 'para llevar'], nivel: 'A2' },
-    { escena: 'En el supermercado', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Busca la sección de frutas. Pregunta dónde está el aceite de oliva.', vocabulario: ['dónde está', 'la sección de', 'oferta', 'tarjeta'], nivel: 'A2' },
-    { escena: 'En el metro', rol1: 'Turista perdido', rol2: 'Barcelonés', instrucciones: 'Pregunta cómo llegar a la Sagrada Familia.', vocabulario: ['línea', 'transbordo', 'parada', 'dirección'], nivel: 'A2' },
-    { escena: 'En la farmacia', rol1: 'Cliente', rol2: 'Farmacéutico', instrucciones: 'Tienes dolor de cabeza. Pide algo para el dolor.', vocabulario: ['me duele', 'pastillas', 'receta', 'tomar'], nivel: 'A2' },
-    { escena: 'En el médico', rol1: 'Paciente', rol2: 'Médico', instrucciones: 'Explica tus síntomas: te duele la garganta y tienes fiebre.', vocabulario: ['síntomas', 'desde hace', 'recetar', 'descansar'], nivel: 'A2' },
-    { escena: 'En la tienda de ropa', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Quieres comprar una camiseta. Pregunta si tienen tu talla.', vocabulario: ['talla', 'probador', 'quedar bien', 'rebajas'], nivel: 'A2' },
-    { escena: 'En el restaurante', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide el menú del día. Tienes alergia a los mariscos.', vocabulario: ['el menú', 'alergia', 'de primero', 'de segundo'], nivel: 'A2' },
-    { escena: 'Alquilar un piso', rol1: 'Inquilino', rol2: 'Propietario', instrucciones: 'Pregunta sobre el alquiler, los gastos y las normas.', vocabulario: ['alquiler', 'fianza', 'gastos incluidos', 'mascotas'], nivel: 'A2' },
-    { escena: 'En la playa', rol1: 'Turista', rol2: 'Socorrista', instrucciones: 'Pregunta si es seguro bañarse y dónde están las duchas.', vocabulario: ['bandera', 'peligroso', 'duchas', 'sombrilla'], nivel: 'A2' },
-    { escena: 'En el banco', rol1: 'Cliente', rol2: 'Empleado', instrucciones: 'Quieres abrir una cuenta. Pregunta qué documentos necesitas.', vocabulario: ['cuenta corriente', 'NIE', 'tarjeta', 'transferencia'], nivel: 'A2' },
-    { escena: 'En la peluquería', rol1: 'Cliente', rol2: 'Peluquero', instrucciones: 'Explica cómo quieres el corte de pelo.', vocabulario: ['cortar', 'un poco', 'flequillo', 'teñir'], nivel: 'A2' },
-    { escena: 'Llamada telefónica', rol1: 'Llamador', rol2: 'Recepcionista', instrucciones: 'Llamas para pedir cita en el dentista.', vocabulario: ['cita', 'disponible', 'horario', 'confirmar'], nivel: 'A2' },
-    { escena: 'En el gimnasio', rol1: 'Nuevo socio', rol2: 'Recepcionista', instrucciones: 'Pregunta sobre los precios y horarios del gimnasio.', vocabulario: ['matrícula', 'mensualidad', 'clases', 'vestuario'], nivel: 'A2' },
-    { escena: 'En el aeropuerto', rol1: 'Pasajero', rol2: 'Empleado', instrucciones: 'Tu maleta no ha llegado. Explica el problema.', vocabulario: ['equipaje', 'reclamación', 'vuelo', 'descripción'], nivel: 'A2' },
-    { escena: 'En la fiesta', rol1: 'Invitado nuevo', rol2: 'Anfitrión', instrucciones: 'Preséntate, pregunta quiénes son los otros invitados.', vocabulario: ['encantado', 'conocer', 'de dónde eres', 'qué tal'], nivel: 'A2' }
+    { escena: 'En el bar', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide algo de beber y comer', vocabulario: ['poner', 'cuenta', 'propina', 'terraza'], nivel: 'A2' },
+    { escena: 'En el supermercado', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Pregunta dónde están los productos', vocabulario: ['pasillo', 'oferta', 'bolsa', 'caja'], nivel: 'A2' },
+    { escena: 'En el metro', rol1: 'Turista', rol2: 'Pasajero local', instrucciones: 'Pide indicaciones para llegar a Sagrada Familia', vocabulario: ['línea', 'transbordo', 'parada', 'billete'], nivel: 'A2' },
+    { escena: 'En la farmacia', rol1: 'Cliente', rol2: 'Farmacéutico', instrucciones: 'Explica tus síntomas y pide medicina', vocabulario: ['dolor', 'receta', 'pastillas', 'jarabe'], nivel: 'A2' },
+    { escena: 'En el médico', rol1: 'Paciente', rol2: 'Médico', instrucciones: 'Describe cómo te sientes', vocabulario: ['fiebre', 'dolor', 'cita', 'análisis'], nivel: 'A2' },
+    { escena: 'En una tienda de ropa', rol1: 'Cliente', rol2: 'Dependiente', instrucciones: 'Busca una camiseta y pregunta por tallas', vocabulario: ['probador', 'talla', 'rebaja', 'quedar'], nivel: 'A2' },
+    { escena: 'En un restaurante', rol1: 'Cliente', rol2: 'Camarero', instrucciones: 'Pide el menú del día y pregunta por alergias', vocabulario: ['carta', 'primer plato', 'postre', 'cuenta'], nivel: 'A2' },
+    { escena: 'Alquilando un piso', rol1: 'Inquilino', rol2: 'Propietario', instrucciones: 'Pregunta sobre el piso y las condiciones', vocabulario: ['fianza', 'gastos', 'amueblado', 'contrato'], nivel: 'A2' },
+    { escena: 'En la playa', rol1: 'Turista', rol2: 'Socorrista', instrucciones: 'Pregunta sobre las normas de la playa', vocabulario: ['bandera', 'sombrilla', 'chiringuito', 'olas'], nivel: 'A2' },
+    { escena: 'En el banco', rol1: 'Cliente', rol2: 'Empleado', instrucciones: 'Quieres abrir una cuenta', vocabulario: ['cuenta', 'tarjeta', 'transferencia', 'cajero'], nivel: 'A2' },
+    { escena: 'En la peluquería', rol1: 'Cliente', rol2: 'Peluquero', instrucciones: 'Explica cómo quieres el corte de pelo', vocabulario: ['cortar', 'flequillo', 'teñir', 'lavar'], nivel: 'A2' },
+    { escena: 'Llamada telefónica', rol1: 'Llamador', rol2: 'Receptor', instrucciones: 'Llama para hacer una reserva en un restaurante', vocabulario: ['reservar', 'mesa', 'persona', 'hora'], nivel: 'A2' },
+    { escena: 'En el gimnasio', rol1: 'Nuevo cliente', rol2: 'Recepcionista', instrucciones: 'Pregunta por las tarifas y horarios', vocabulario: ['abono', 'clase', 'vestuario', 'entrenador'], nivel: 'A2' },
+    { escena: 'En el aeropuerto', rol1: 'Pasajero', rol2: 'Personal de facturación', instrucciones: 'Factura tu maleta y pregunta por la puerta', vocabulario: ['equipaje', 'embarque', 'puerta', 'asiento'], nivel: 'A2' },
+    { escena: 'En una fiesta', rol1: 'Invitado nuevo', rol2: 'Anfitrión', instrucciones: 'Preséntate y conoce a la gente', vocabulario: ['presentar', 'conocer', 'encantado', 'copa'], nivel: 'A2' }
   ],
-
   preguntas: [
-    { pregunta: '¿Qué es lo que más te gusta de vivir en Barcelona?', ayuda: 'Puedes hablar del clima, la gente, la comida, las playas...', nivel: 'A2' },
-    { pregunta: '¿Qué echas de menos de Rusia?', ayuda: 'Comida, familia, amigos, clima, tradiciones...', nivel: 'A2' },
+    { pregunta: '¿Por qué decidiste venir a Barcelona?', ayuda: 'Trabajo, estudios, familia, clima, cultura...', nivel: 'A2' },
+    { pregunta: '¿Qué es lo que más te gusta de vivir en España?', ayuda: 'Comida, gente, clima, cultura, idioma...', nivel: 'A2' },
+    { pregunta: '¿Qué echas de menos de tu país?', ayuda: 'Familia, amigos, comida, costumbres...', nivel: 'A2' },
     { pregunta: '¿Cuál fue tu momento más difícil al llegar a España?', ayuda: 'Idioma, burocracia, cultura, soledad...', nivel: 'A2' },
     { pregunta: '¿Qué haces en tu tiempo libre en Barcelona?', ayuda: 'Deportes, paseos, amigos, cultura...', nivel: 'A2' },
     { pregunta: '¿Has visitado otras ciudades de España? ¿Cuáles?', ayuda: 'Madrid, Valencia, Sevilla, Granada...', nivel: 'A2' },
@@ -175,13 +135,11 @@ const DEFAULT_TASKS = {
     { pregunta: '¿Celebras las fiestas españolas? ¿Cuáles?', ayuda: 'Sant Jordi, La Mercè, Navidad, Reyes...', nivel: 'A2' },
     { pregunta: '¿Cómo es tu barrio? ¿Te gusta vivir allí?', ayuda: 'Tranquilo, ruidoso, céntrico, servicios...', nivel: 'A2' },
     { pregunta: '¿Qué planes tienes para el futuro en España?', ayuda: 'Trabajo, estudios, familia, viajes...', nivel: 'A2' },
-    { pregunta: '¿Qué diferencias culturales has notado entre Rusia y España?', ayuda: 'Horarios, comida, relaciones, trabajo...', nivel: 'A2' },
+    { pregunta: '¿Qué diferencias culturales has notado entre tu país y España?', ayuda: 'Horarios, comida, relaciones, trabajo...', nivel: 'A2' },
     { pregunta: '¿Cómo conociste a tus amigos en Barcelona?', ayuda: 'Trabajo, estudios, vecinos, actividades...', nivel: 'A2' },
-    { pregunta: '¿Qué consejos darías a un ruso que viene a vivir a Barcelona?', ayuda: 'Idioma, papeles, vivienda, trabajo...', nivel: 'A2' },
-    { pregunta: '¿Cuál es tu lugar favorito de Barcelona?', ayuda: 'Parque, playa, barrio, edificio...', nivel: 'A2' },
-    { pregunta: '¿Qué habilidades has aprendido desde que vives en España?', ayuda: 'Idioma, cocina, independencia...', nivel: 'A2' }
+    { pregunta: '¿Qué consejos darías a alguien que viene a vivir a Barcelona?', ayuda: 'Idioma, papeles, vivienda, trabajo...', nivel: 'A2' },
+    { pregunta: '¿Cuál es tu lugar favorito de Barcelona?', ayuda: 'Parque, playa, barrio, edificio...', nivel: 'A2' }
   ],
-
   adivinanza: [
     { respuesta: 'playa', pistas: ['arena', 'mar', 'sol', 'verano', 'Barceloneta'], nivel: 'A2' },
     { respuesta: 'metro', pistas: ['transporte', 'bajo tierra', 'rápido', 'L1 L2 L3'], nivel: 'A2' },
@@ -201,324 +159,347 @@ const DEFAULT_TASKS = {
   ]
 };
 
-// ============ INITIALIZE TASKS IN FIREBASE ============
+// ============ INITIALIZE TASKS ============
 const initializeTasks = async () => {
   try {
     for (const [collection, tasks] of Object.entries(DEFAULT_TASKS)) {
       const snapshot = await db.collection(collection).limit(1).get();
-      
       if (snapshot.empty) {
-        console.log(`📝 Creando tareas para: ${collection}`);
+        console.log(`📝 Creating tasks for: ${collection}`);
         for (const task of tasks) {
-          await db.collection(collection).add({
-            ...task,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          });
+          await db.collection(collection).add({ ...task, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         }
-        console.log(`✅ ${tasks.length} tareas creadas en ${collection}`);
+        console.log(`✅ ${tasks.length} tasks created in ${collection}`);
       }
     }
-    console.log('✅ Todas las tareas inicializadas');
-  } catch (e) {
-    console.error('Error inicializando tareas:', e);
+    console.log('✅ Tasks initialization complete');
+  } catch (error) {
+    console.error('Error initializing tasks:', error);
   }
 };
 
-// ============ HELPER FUNCTIONS ============
+// ============ HELPERS ============
 const generateRoomCode = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 };
 
-const getRandomTasks = async (collection, count = 20, nivel = 'A2') => {
+const getTasksForGame = async (gameType) => {
+  const collectionMap = {
+    'tabu': 'tabu',
+    'conjugacion': 'conjugacion',
+    'palabras': 'palabrasPorTema',
+    'dialogos': 'dialogos',
+    'roleplay': 'roleplay',
+    'preguntas': 'preguntas',
+    'cadena': null,
+    'adivinanza': 'adivinanza',
+    'batalla': null
+  };
+  
+  const collection = collectionMap[gameType];
+  if (!collection) return [];
+  
   try {
-    const snapshot = await db.collection(collection).where('nivel', '==', nivel).get();
+    const snapshot = await db.collection(collection).get();
     const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const shuffled = tasks.sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
-  } catch (e) {
-    console.error(`Error getting tasks from ${collection}:`, e);
-    return DEFAULT_TASKS[collection]?.slice(0, count) || [];
+    // Shuffle tasks
+    for (let i = tasks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
+    }
+    return tasks.slice(0, 10); // Return max 10 tasks
+  } catch (error) {
+    console.error('Error getting tasks:', error);
+    return DEFAULT_TASKS[collection]?.slice(0, 10) || [];
   }
 };
 
-// ============ SOCKET.IO EVENTS ============
+// ============ SOCKET HANDLERS ============
 io.on('connection', (socket) => {
-  console.log('🔌 Nuevo jugador conectado:', socket.id);
+  console.log(`🔌 Connected: ${socket.id}`);
 
-  // ---- CREATE GAME ----
-  socket.on('create_game', async (gameType) => {
-    const roomCode = generateRoomCode();
-    const game = {
-      id: roomCode,
-      type: gameType,
-      players: { [socket.id]: { id: socket.id, name: 'Jugador 1', role: 'player1', ready: false } },
+  // ---- CREATE ROOM ----
+  socket.on('create_room', () => {
+    let roomCode;
+    do { roomCode = generateRoomCode(); } while (rooms.has(roomCode));
+    
+    const room = {
+      code: roomCode,
+      players: { [socket.id]: { id: socket.id, role: 'player1', ready: false } },
+      currentGame: null,
+      gameState: null,
       scores: { player1: 0, player2: 0 },
-      status: 'waiting',
-      history: [],
-      currentTaskIndex: 0,
       tasks: [],
-      startTime: null,
-      timerValue: 60
+      taskIndex: 0,
+      currentTurn: 'player1',
+      history: [],
+      words: [],
+      timer: null,
+      timerValue: 0
     };
-
-    games.set(roomCode, game);
-    players.set(socket.id, { gameId: roomCode, role: 'player1' });
     
+    rooms.set(roomCode, room);
+    players.set(socket.id, { roomCode, role: 'player1' });
     socket.join(roomCode);
-    socket.emit('game_created', { roomCode, gameId: roomCode });
     
-    console.log(`🎮 Juego creado: ${roomCode} (${gameType})`);
+    socket.emit('room_created', { roomCode });
+    console.log(`🏠 Room created: ${roomCode}`);
   });
 
-  // ---- JOIN GAME ----
-  socket.on('join_game', (code) => {
+  // ---- JOIN ROOM ----
+  socket.on('join_room', (code) => {
     const roomCode = code.toUpperCase();
-    const game = games.get(roomCode);
-
-    if (!game) {
-      socket.emit('error', { message: 'Sala no encontrada. Verifica el código.' });
+    const room = rooms.get(roomCode);
+    
+    if (!room) {
+      socket.emit('error', { message: 'Sala no encontrada' });
       return;
     }
-
-    if (Object.keys(game.players).length >= 2) {
-      socket.emit('error', { message: 'La sala está llena (2/2 jugadores)' });
+    
+    if (Object.keys(room.players).length >= 2) {
+      socket.emit('error', { message: 'La sala está llena' });
       return;
     }
-
-    game.players[socket.id] = { id: socket.id, name: 'Jugador 2', role: 'player2', ready: false };
-    players.set(socket.id, { gameId: roomCode, role: 'player2' });
-
+    
+    room.players[socket.id] = { id: socket.id, role: 'player2', ready: false };
+    players.set(socket.id, { roomCode, role: 'player2' });
     socket.join(roomCode);
     
-    // Send game type to player 2
-    socket.emit('game_info', { gameType: game.type });
+    socket.emit('room_joined', { roomCode });
+    socket.to(roomCode).emit('partner_joined');
+    console.log(`👥 Player 2 joined: ${roomCode}`);
+  });
+
+  // ---- SELECT GAME ----
+  socket.on('select_game', ({ roomCode, gameType }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
     
-    io.to(roomCode).emit('player_joined', { playerCount: 2, gameType: game.type });
+    room.currentGame = gameType;
+    room.gameState = 'waiting';
     
-    console.log(`👥 Jugador 2 se unió a: ${roomCode}`);
+    // Reset ready states
+    Object.values(room.players).forEach(p => p.ready = false);
+    
+    io.to(roomCode).emit('game_selected', { gameType });
+    console.log(`🎮 Game selected: ${gameType} in ${roomCode}`);
   });
 
   // ---- PLAYER READY ----
-  socket.on('player_ready', ({ roomCode, player, ready }) => {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    if (game.players[socket.id]) {
-      game.players[socket.id].ready = ready;
+  socket.on('player_ready', ({ roomCode, ready }) => {
+    const room = rooms.get(roomCode);
+    const playerData = players.get(socket.id);
+    if (!room || !playerData) return;
+    
+    if (room.players[socket.id]) {
+      room.players[socket.id].ready = ready;
     }
-
-    io.to(roomCode).emit('player_ready', { player, ready });
+    
+    // Notify other player
+    socket.to(roomCode).emit('player_ready_status', { player: playerData.role, ready });
+    
+    // Check if both ready
+    const allReady = Object.values(room.players).every(p => p.ready);
+    if (allReady && Object.keys(room.players).length === 2) {
+      console.log(`✅ Both players ready in ${roomCode}`);
+    }
   });
 
   // ---- START GAME ----
-  socket.on('start_game', async (roomCode) => {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    // Load tasks based on game type
-    let tasks = [];
-    let timerValue = 60;
-
-    switch(game.type) {
-      case 'tabu':
-        tasks = await getRandomTasks('tabu', 20);
-        timerValue = 120;
-        break;
-      case 'conjugacion':
-        tasks = await getRandomTasks('conjugacion', 15);
-        timerValue = 180;
-        break;
-      case 'palabras':
-        tasks = await getRandomTasks('palabrasPorTema', 5);
-        timerValue = 30;
-        break;
-      case 'dialogos':
-        tasks = await getRandomTasks('dialogos', 10);
-        timerValue = 300;
-        break;
-      case 'roleplay':
-        tasks = await getRandomTasks('roleplay', 10);
-        timerValue = 300;
-        break;
-      case 'preguntas':
-        tasks = await getRandomTasks('preguntas', 15);
-        timerValue = 300;
-        break;
-      case 'cadena':
-        tasks = [{ tema: 'Cadena de palabras' }];
-        timerValue = 120;
-        break;
-      case 'adivinanza':
-        tasks = await getRandomTasks('adivinanza', 15);
-        timerValue = 180;
-        break;
-      case 'batalla':
-        tasks = [{ tiempo: 'presente' }];
-        timerValue = 60;
-        break;
+  socket.on('start_game', async ({ roomCode, gameType }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    const tasks = await getTasksForGame(gameType);
+    
+    room.tasks = tasks;
+    room.taskIndex = 0;
+    room.scores = { player1: 0, player2: 0 };
+    room.history = [];
+    room.words = [];
+    room.currentTurn = 'player1';
+    room.gameState = 'playing';
+    
+    // Timer only for specific games
+    const gamesWithTimer = ['palabras', 'batalla'];
+    const hasTimer = gamesWithTimer.includes(gameType);
+    const timerDuration = gameType === 'palabras' ? 30 : gameType === 'batalla' ? 60 : 0;
+    
+    io.to(roomCode).emit('game_started', {
+      gameType,
+      tasks,
+      startingPlayer: 'player1',
+      hasTimer,
+      timerDuration
+    });
+    
+    // Start timer if needed
+    if (hasTimer) {
+      room.timerValue = timerDuration;
+      room.timer = setInterval(() => {
+        room.timerValue--;
+        io.to(roomCode).emit('timer_update', room.timerValue);
+        
+        if (room.timerValue <= 0) {
+          clearInterval(room.timer);
+          room.timer = null;
+          io.to(roomCode).emit('timer_finished');
+          io.to(roomCode).emit('game_finished');
+        }
+      }, 1000);
     }
-
-    game.tasks = tasks;
-    game.status = 'active';
-    game.startTime = Date.now();
-    game.timerValue = timerValue;
-
-    io.to(roomCode).emit('game_started', { 
-      tasks, 
-      time: timerValue,
-      gameType: game.type
-    });
-
-    // Start timer
-    startGameTimer(roomCode, timerValue);
-
-    console.log(`🚀 Juego iniciado: ${roomCode}`);
-  });
-
-  // ---- SUBMIT ANSWER ----
-  socket.on('submit_answer', (roomCode, data) => {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    const historyEntry = {
-      timestamp: Date.now(),
-      playerId: socket.id,
-      playerRole: players.get(socket.id)?.role,
-      ...data
-    };
-
-    game.history.push(historyEntry);
-
-    io.to(roomCode).emit('answer_submitted', { 
-      playerId: socket.id,
-      data: historyEntry
-    });
-
-    // Emit to admin watchers
-    io.to(`admin_${roomCode}`).emit('game_update', game);
+    
+    console.log(`🚀 Game started: ${gameType} in ${roomCode}`);
   });
 
   // ---- UPDATE SCORE ----
-  socket.on('update_score', (roomCode, points) => {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    const playerData = players.get(socket.id);
-    if (playerData) {
-      const role = playerData.role;
-      game.scores[role] = (game.scores[role] || 0) + points;
-      io.to(roomCode).emit('scores_updated', game.scores);
-    }
+  socket.on('update_score', ({ roomCode, player, points }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    room.scores[player] = (room.scores[player] || 0) + points;
+    io.to(roomCode).emit('scores_updated', room.scores);
   });
 
   // ---- NEXT TASK ----
-  socket.on('next_task', (roomCode) => {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    game.currentTaskIndex++;
+  socket.on('next_task', ({ roomCode, switchTurn }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
     
-    if (game.currentTaskIndex >= game.tasks.length) {
-      // Game finished
-      game.status = 'finished';
-      io.to(roomCode).emit('game_finished', { scores: game.scores });
+    room.taskIndex++;
+    
+    if (switchTurn) {
+      room.currentTurn = room.currentTurn === 'player1' ? 'player2' : 'player1';
+    }
+    
+    if (room.taskIndex >= room.tasks.length) {
+      io.to(roomCode).emit('game_finished');
     } else {
-      io.to(roomCode).emit('next_task', { 
-        task: game.tasks[game.currentTaskIndex],
-        index: game.currentTaskIndex
+      io.to(roomCode).emit('next_task', {
+        task: room.tasks[room.taskIndex],
+        index: room.taskIndex,
+        switchTurn
       });
+      
+      if (switchTurn) {
+        io.to(roomCode).emit('turn_changed', { turn: room.currentTurn });
+      }
     }
   });
 
-  // ---- ADD WORD (for chain/palabras games) ----
-  socket.on('add_word', ({ roomCode, word, player }) => {
-    const game = games.get(roomCode);
-    if (!game) return;
+  // ---- SUBMIT ANSWER ----
+  socket.on('submit_answer', ({ roomCode, action, value, player }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    const entry = { timestamp: Date.now(), data: { action, value, player } };
+    room.history.push(entry);
+    io.to(roomCode).emit('answer_submitted', entry);
+  });
 
+  // ---- ADD WORD ----
+  socket.on('add_word', ({ roomCode, word, player }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    room.words.push({ word, player });
     io.to(roomCode).emit('word_added', { word, player });
   });
 
-  // ============ ADMIN EVENTS ============
-  socket.on('admin_login', (password) => {
-    if (password === (process.env.ADMIN_PASSWORD || 'ksesha2025')) {
-      socket.join('admin');
-      socket.emit('admin_authenticated', { success: true });
-      console.log('👨‍🏫 Admin conectado');
-    } else {
-      socket.emit('admin_authenticated', { success: false });
+  // ---- FINISH GAME ----
+  socket.on('finish_game', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    if (room.timer) {
+      clearInterval(room.timer);
+      room.timer = null;
     }
+    
+    io.to(roomCode).emit('game_finished');
   });
 
+  // ---- RETURN TO GAMES ----
+  socket.on('return_to_games', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    
+    if (room.timer) {
+      clearInterval(room.timer);
+      room.timer = null;
+    }
+    
+    room.currentGame = null;
+    room.gameState = null;
+    room.tasks = [];
+    room.taskIndex = 0;
+    room.history = [];
+    room.words = [];
+    Object.values(room.players).forEach(p => p.ready = false);
+    
+    io.to(roomCode).emit('return_to_games');
+  });
+
+  // ---- ADMIN LOGIN ----
+  socket.on('admin_login', (password) => {
+    const success = password === (process.env.ADMIN_PASSWORD || 'ksesha2025');
+    socket.emit('admin_authenticated', { success });
+    if (success) console.log('👨‍🏫 Admin logged in');
+  });
+
+  // ---- GET ACTIVE GAMES ----
   socket.on('get_active_games', () => {
-    const activeGames = Array.from(games.values())
-      .filter(g => g.status === 'active' || g.status === 'waiting')
-      .map(g => ({
-        id: g.id,
-        type: g.type,
-        players: g.players,
-        scores: g.scores,
-        status: g.status,
-        currentTaskIndex: g.currentTaskIndex,
-        tasksCount: g.tasks?.length || 0
-      }));
+    const activeGames = [];
+    rooms.forEach((room, code) => {
+      activeGames.push({
+        id: code,
+        roomCode: code,
+        currentGame: room.currentGame,
+        playerCount: Object.keys(room.players).length,
+        scores: room.scores,
+        gameState: room.gameState
+      });
+    });
     socket.emit('active_games_list', activeGames);
   });
 
-  socket.on('watch_game', (gameId) => {
-    const game = games.get(gameId);
-    if (game) {
-      socket.join(`admin_${gameId}`);
-      socket.emit('game_details', {
-        ...game,
-        gameData: { 
-          tasks: game.tasks,
-          currentTaskIndex: game.currentTaskIndex
-        }
-      });
-    }
-  });
-
-  // ---- TASK MANAGEMENT ----
-  socket.on('get_tasks', async (collection, nivel = 'A2') => {
+  // ---- GET TASKS ----
+  socket.on('get_tasks', async (collection) => {
     try {
       const snapshot = await db.collection(collection).get();
       const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       socket.emit('tasks_list', tasks);
-    } catch (e) {
-      socket.emit('error', { message: 'Error cargando tareas' });
+    } catch (error) {
+      console.error('Error getting tasks:', error);
+      socket.emit('tasks_list', []);
     }
   });
 
-  socket.on('add_task', async (collection, task) => {
+  // ---- ADD TASK ----
+  socket.on('add_task', async (collection, taskData) => {
     try {
       const docRef = await db.collection(collection).add({
-        ...task,
-        nivel: task.nivel || 'A2',
+        ...taskData,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      socket.emit('task_added', { id: docRef.id, ...task });
-      io.to('admin').emit('task_added_notification', { collection, task: { id: docRef.id, ...task } });
-    } catch (e) {
-      socket.emit('error', { message: 'Error añadiendo tarea' });
+      socket.emit('task_added', { id: docRef.id, ...taskData });
+      console.log(`📝 Task added to ${collection}`);
+    } catch (error) {
+      console.error('Error adding task:', error);
     }
   });
 
+  // ---- DELETE TASK ----
   socket.on('delete_task', async (collection, taskId) => {
     try {
       await db.collection(collection).doc(taskId).delete();
       socket.emit('task_deleted', { id: taskId });
-      io.to('admin').emit('task_deleted_notification', { collection, taskId });
-    } catch (e) {
-      socket.emit('error', { message: 'Error eliminando tarea' });
-    }
-  });
-
-  socket.on('update_task', async (collection, taskId, updates) => {
-    try {
-      await db.collection(collection).doc(taskId).update(updates);
-      socket.emit('task_updated', { id: taskId, ...updates });
-    } catch (e) {
-      socket.emit('error', { message: 'Error actualizando tarea' });
+      console.log(`🗑️ Task deleted from ${collection}`);
+    } catch (error) {
+      console.error('Error deleting task:', error);
     }
   });
 
@@ -526,74 +507,26 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const playerData = players.get(socket.id);
     if (playerData) {
-      const game = games.get(playerData.gameId);
-      if (game) {
-        delete game.players[socket.id];
-        const remaining = Object.keys(game.players).length;
+      const room = rooms.get(playerData.roomCode);
+      if (room) {
+        delete room.players[socket.id];
         
-        io.to(playerData.gameId).emit('player_disconnected', { playerCount: remaining });
-        
-        if (remaining === 0) {
-          // Clean up game
-          const timer = gameTimers.get(playerData.gameId);
-          if (timer) clearInterval(timer);
-          gameTimers.delete(playerData.gameId);
-          games.delete(playerData.gameId);
-          console.log(`🗑️ Juego eliminado: ${playerData.gameId}`);
+        if (Object.keys(room.players).length === 0) {
+          if (room.timer) clearInterval(room.timer);
+          rooms.delete(playerData.roomCode);
+          console.log(`🏠 Room deleted: ${playerData.roomCode}`);
+        } else {
+          io.to(playerData.roomCode).emit('partner_disconnected');
         }
       }
       players.delete(socket.id);
     }
-    console.log('🔌 Jugador desconectado:', socket.id);
+    console.log(`🔌 Disconnected: ${socket.id}`);
   });
-});
-
-// ============ TIMER FUNCTION ============
-function startGameTimer(roomCode, duration) {
-  let timeLeft = duration;
-  
-  const timer = setInterval(() => {
-    timeLeft--;
-    io.to(roomCode).emit('timer_update', timeLeft);
-    
-    if (timeLeft <= 0) {
-      clearInterval(timer);
-      gameTimers.delete(roomCode);
-      
-      const game = games.get(roomCode);
-      if (game) {
-        game.status = 'finished';
-        io.to(roomCode).emit('game_finished', { scores: game.scores });
-      }
-    }
-  }, 1000);
-  
-  gameTimers.set(roomCode, timer);
-}
-
-// ============ EXPRESS ROUTES ============
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date(), games: games.size });
-});
-
-app.get('/api/games', (req, res) => {
-  const activeGames = Array.from(games.values())
-    .filter(g => g.status === 'active' || g.status === 'waiting');
-  res.json(activeGames);
-});
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============ START SERVER ============
 const PORT = process.env.PORT || 3000;
-
 initializeTasks().then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`🎮 Servidor iniciado en puerto ${PORT}`);
-  });
+  server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 });
