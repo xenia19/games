@@ -1,168 +1,73 @@
-# 🎮 Juegos - Интерактивные игры для изучения испанского
+# 🎮 Juegos — Interactive Spanish Learning Games
 
-Платформа с 10 интерактивными играми для изучения испанского языка. Ученики играют в парах, преподаватель видит всё в реальном времени через админ-панель.
+A full-stack web app for learning Spanish through 10 interactive games. Students play in pairs while teachers monitor progress and manage tasks in real-time.
 
-## 🌟 Возможности
-
-- **10 различных игр** для практики лексики и грамматики
-- **Real-time синхронизация** между двумя игроками через WebSocket
-- **Админ-панель** для преподавателя (мониторинг + управление заданиями)
-- **Firebase база данных** для сохранения заданий
-- **Полностью интерактивное** и красивое UI
-
-## 🎯 Игры
-
-1. **Tabú** 🤐 - Объясни слово без запретных слов (20 слов уровня A2)
-2. **Спряжение глаголов** 📝 - Один спрягает, другой отвечает
-3. **Слова по теме (30 сек)** ⚡ - Сколько слов ты знаешь?
-4. **Диалоги времён** 💬 - Практика Past/Present/Subjuntivo
-5. **Roleplay Barcelona** 🎭 - В кафе, магазине, на улице
-6. **Личные вопросы** ❓ - Отвечай на вопросы
-7. **Цепочка слов** 🔗 - Последняя буква = первая буква
-8. **Угадай слово** 🤔 - Угадывание по описанию
-9. **Battaglia глаголов** ⚔️ - Кто больше глаголов вспомнит?
-10. **Charadas** 🎪 - Мимика и описание
-
-## 🚀 Быстрый старт
-
-### 1. Клонируй репозиторий
-
-```bash
-git clone https://github.com/xenia19/juegos.git
-cd juegos
-```
-
-### 2. Установи зависимости
-
-```bash
-npm install
-```
-
-### 3. Создай файл .env
-
-Скопируй Firebase credentials в `.env`:
-
-```
-FIREBASE_PROJECT_ID=clases-barcelona
-FIREBASE_PRIVATE_KEY=...
-FIREBASE_CLIENT_EMAIL=...
-ADMIN_PASSWORD=ksesha2025
-```
-
-### 4. Запусти локально
-
-**Terminal 1 (Backend):**
-```bash
-node server.js
-```
-
-**Terminal 2 (Frontend):**
-```bash
-npm run dev
-```
-
-Открой `http://localhost:3001`
-
-## 📦 Развёртывание на Render.com
-
-### Шаги:
-
-1. Загрузи проект на GitHub:
-   ```bash
-   git add .
-   git commit -m "Initial commit"
-   git push origin main
-   ```
-
-2. Открой [render.com](https://render.com)
-
-3. Создай новый Web Service:
-   - Выбери GitHub репозиторий
-   - Build Command: `npm install && npm run build`
-   - Start Command: `node server.js`
-   - Добавь переменные окружения из `.env`
-
-4. Deploy! 🎉
-
-## 🎓 Использование
-
-### Для учеников:
-
-1. Откройте `https://your-app.onrender.com`
-2. Выберите игру
-3. Один ученик создаёт комнату (получает код)
-4. Второй вводит код и присоединяется
-5. Начните игру!
-
-### Для преподавателя:
-
-1. Нажмите "👨‍🏫 Администратор"
-2. Введите пароль: `ksesha2025`
-3. Смотрите активные игры в реальном времени
-4. Добавляйте/редактируйте задания в админ-панели
-
-## 📝 Структура проекта
-
-```
-juegos/
-├── server.js              # Express + Socket.io backend
-├── App.jsx                # React приложение (все компоненты)
-├── App.css                # Стили
-├── package.json           # Dependencies
-├── .env                   # Firebase credentials
-└── public/
-    └── index.html         # HTML шаблон
-```
-
-## 🔧 Изменение пароля админа
-
-Отредактируй `.env`:
-```
-ADMIN_PASSWORD=твой_новый_пароль
-```
-
-## 🌐 Переменные окружения
-
-- `FIREBASE_*` - Firebase credentials
-- `ADMIN_PASSWORD` - Пароль для админ-панели
-- `PORT` - Порт сервера (по умолчанию 3000)
-- `NODE_ENV` - production/development
-
-## 📱 Совместимость
-
-- ✅ Desktop (Chrome, Firefox, Safari)
-- ✅ Планшеты (iPad, Android)
-- ✅ Мобильные (рекомендуется ландшафт для лучшего UX)
-
-## 🐛 Решение проблем
-
-**Игроки не видят друг друга:**
-- Проверь интернет соединение
-- Убедись, что используешь одинаковый URL
-- Перезагрузи страницу
-
-**Админ-панель не открывается:**
-- Проверь пароль (по умолчанию `ksesha2025`)
-- Убедись, что используешь HTTPS на Render
-
-**Firebase не подключается:**
-- Проверь credentials в `.env`
-- Убедись, что Firestore базы созданы в Firebase Console
-
-## 📞 Поддержка
-
-Если что-то не работает, проверь:
-1. Консоль браузера (F12)
-2. Логи сервера
-3. Интернет соединение
-4. Firebase Console для ошибок
-
-## 📄 Лицензия
-
-Проект создан для образовательных целей.
+📦 **Repository:** [https://github.com/xenia19/juegos](https://github.com/xenia19/juegos)
 
 ---
 
-**Автор:** Claude (Anthropic)  
-**Дата:** Декабрь 2025  
-**Версия:** 1.0.0
+## 📌 About
+
+Juegos is a **React + Node.js + Firebase** platform designed for language learners.
+Students can practice vocabulary and grammar through engaging games, while teachers track progress via a real-time admin panel.
+
+---
+
+## ✨ Features
+
+* 🕹 **10 interactive games** (vocabulary, verbs, dialogues, roleplay, guessing, charades)
+* 🔄 **Real-time multiplayer** via WebSocket
+* 👨‍🏫 **Admin panel** for monitoring and task management
+* 💾 **Firebase** database for storing tasks and results
+* 🎨 Fully interactive and responsive UI
+
+---
+
+## 🛠 Tech Stack
+
+* **Frontend:** React
+* **Backend:** Node.js + Express + Socket.io
+* **Database:** Firebase Firestore
+* **Deployment:** Render.com
+* **Realtime Communication:** WebSockets
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repo
+git clone https://github.com/xenia19/juegos.git
+cd juegos
+
+# Install dependencies
+npm install
+
+# Create .env with Firebase credentials
+FIREBASE_PROJECT_ID=...
+FIREBASE_PRIVATE_KEY=...
+FIREBASE_CLIENT_EMAIL=...
+ADMIN_PASSWORD=your_password
+
+# Start backend
+node server.js
+
+# Start frontend
+npm run dev
+
+# Open in browser
+http://localhost:3001
+```
+
+---
+
+## 📱 Usage
+
+* **Students:** Create or join a room via code, start playing games in pairs.
+* **Teacher:** Log in with admin password, monitor games live, add or edit tasks.
+
+---
+
+## 📄 License
+
+Educational project created by **Xenia**.
